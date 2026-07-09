@@ -18,7 +18,12 @@ import {
 export const brewSchema = z.object({
   bean_id: z.uuid('請選擇豆子'),
   brew_type: brewTypeSchema.default('pour_over'),
-  brewed_at: z.iso.datetime({ local: true, message: '日期時間格式錯誤' }),
+  // 接受本地格式（表單 datetime-local）與含時區的 ISO（client 送出前轉換）
+  brewed_at: z.iso.datetime({
+    local: true,
+    offset: true,
+    message: '日期時間格式錯誤',
+  }),
   // 器材
   dripper: optionalTrimmedString,
   filter: optionalTrimmedString,

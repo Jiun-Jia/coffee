@@ -1,20 +1,194 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { formatRatio, formatSecondsToMSS } from '@/lib/format'
+import { getBrew, getBrewTags } from '@/lib/queries/brews'
+import {
+  BREW_TYPE_LABELS,
+  ROAST_LEVEL_LABELS,
+} from '@/lib/validations/enums'
 
 export const metadata: Metadata = { title: '沖煮詳情' }
 
-// P4：BREW-14 實作沖煮詳情
+function Section({
+  title,
+  items,
+}: {
+  title: string
+  items: { label: string; value: React.ReactNode }[]
+}) {
+  const visible = items.filter(
+    (i) => i.value !== null && i.value !== undefined && i.value !== '',
+  )
+  if (visible.length === 0) return null
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+        {visible.map((i) => (
+          <div key={i.label}>
+            <span className="text-muted-foreground">{i.label}：</span>
+            {i.value}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function scoreLabel(n: number | null) {
+  return n != null ? `${n} / 5` : null
+}
+
+// P4 基本版（W4 的 BREW-14/15/16 補雷達圖、複製、編輯/刪除入口）
 export default async function BrewDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const brew = await getBrew(id)
+  if (!brew) notFound()
+  const tags = await getBrewTags(id)
+
   return (
-    <div className="space-y-2">
-      <h1 className="text-2xl font-semibold">沖煮詳情</h1>
-      <p className="text-muted-foreground text-sm">
-        沖煮 {id}（W4 實作）
-      </p>
+    <div className="max-w-3xl space-y-6">
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold">
+            {brew.name_batch}
+            <span className="text-muted-foreground ml-2 text-base font-normal">
+              {brew.brewed_at?.slice(0, 16).replace('T', ' ')}
+            </span>
+          </h1>
+          {brew.brew_type && (
+            <Badge variant="outline">{BREW_TYPE_LABELS[brew.brew_type]}</Badge>
+          )}
+        </div>
+        <p className="text-muted-foreground text-sm">
+          <Link href={`/beans/${brew.bean_id}`} className="hover:underline">
+            {brew.roaster} · {brew.origin}
+            {brew.roast_level && ` · ${ROAST_LEVEL_LABELS[brew.roast_level]}`}
+          </Link>
+          {brew.rest_days != null && ` · 養豆 ${brew.rest_days} 天`}
+        </p>
+      </div>
+
+      <Section
+        title="沖煮參數"
+        items={[
+          { label: '濾杯', value: brew.dripper },
+          { label: '濾紙', value: brew.filter },
+          { label: '刻度', value: brew.grind_setting },
+          { label: '手沖壺', value: brew.kettle },
+          {
+            label: '水溫',
+            value: brew.water_temp != null ? `${brew.water_temp}°C` : null,
+          },
+          {
+            label: '粉量',
+            value: brew.dose_g != null ? `${brew.dose_g} g` : null,
+          },
+          {
+            label: '水量',
+            value: brew.water_g != null ? `${brew.water_g} g` : null,
+          },
+          {
+            label: '冰量',
+            value: brew.ice_g != null ? `${brew.ice_g} g` : null,
+          },
+          {
+            label: '水粉比',
+            value:
+              brew.ratio_value != null
+                ? `${formatRatio(brew.ratio_value)}${brew.ratio_include_ice ? '（含冰）' : ''}`
+                : null,
+          },
+          {
+            label: '悶蒸水量',
+            value:
+              brew.bloom_water_g != null ? `${brew.bloom_water_g} g` : null,
+          },
+          {
+            label: '悶蒸時間',
+            value:
+              brew.bloom_time_sec != null
+                ? formatSecondsToMSS(brew.bloom_time_sec)
+                : null,
+          },
+          {
+            label: '總時間',
+            value:
+              brew.total_time_sec != null
+                ? formatSecondsToMSS(brew.total_time_sec)
+                : null,
+          },
+        ]}
+      />
+
+      {brew.pour_notes && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">注水手法</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm whitespace-pre-wrap">
+            {brew.pour_notes}
+          </CardContent>
+        </Card>
+      )}
+
+      <Section
+        title="感官評分"
+        items={[
+          { label: '香氣', value: scoreLabel(brew.aroma) },
+          { label: '酸質', value: scoreLabel(brew.acidity) },
+          { label: '甜感', value: scoreLabel(brew.sweetness) },
+          { label: '苦味', value: scoreLabel(brew.bitterness) },
+          { label: '口感', value: scoreLabel(brew.body) },
+          { label: '平衡感', value: scoreLabel(brew.balance) },
+          { label: '餘韻', value: scoreLabel(brew.aftertaste) },
+          {
+            label: '整體喜好度',
+            value: brew.overall != null ? '★'.repeat(brew.overall) : null,
+          },
+        ]}
+      />
+
+      {(tags.length > 0 || brew.flavor_notes) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">風味</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {tags.map((tag) => (
+                  <Badge key={tag.id} variant="secondary">
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {brew.flavor_notes && (
+              <p className="whitespace-pre-wrap">{brew.flavor_notes}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Section
+        title="結論"
+        items={[
+          { label: '下次調整', value: brew.next_adjustment },
+          { label: '備註', value: brew.notes },
+        ]}
+      />
+
+      {/* W4：BREW-14 雷達圖 / BREW-15 複製為新紀錄 / 編輯與刪除入口 */}
     </div>
   )
 }
