@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { BrewActions } from '@/components/brews/brew-actions'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBrew, getBrewTags } from '@/lib/queries/brews'
 import {
@@ -57,17 +58,22 @@ export default async function BrewDetailPage({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">
-            {brew.name_batch}
-            <span className="text-muted-foreground ml-2 text-base font-normal">
-              {brew.brewed_at?.slice(0, 16).replace('T', ' ')}
-            </span>
-          </h1>
-          {brew.brew_type && (
-            <Badge variant="outline">{BREW_TYPE_LABELS[brew.brew_type]}</Badge>
-          )}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold">
+              {brew.name_batch}
+              <span className="text-muted-foreground ml-2 text-base font-normal">
+                {brew.brewed_at?.slice(0, 16).replace('T', ' ')}
+              </span>
+            </h1>
+            {brew.brew_type && (
+              <Badge variant="outline">
+                {BREW_TYPE_LABELS[brew.brew_type]}
+              </Badge>
+            )}
+          </div>
+          {brew.id && <BrewActions brewId={brew.id} />}
         </div>
         <p className="text-muted-foreground text-sm">
           <Link href={`/beans/${brew.bean_id}`} className="hover:underline">

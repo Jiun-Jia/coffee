@@ -34,10 +34,10 @@ type BeanFormProps = {
   beanId?: string
   defaultValues?: Partial<BeanInput>
   /**
-   * inline 模式（BEAN-9）：提交成功後不導頁、改呼叫此回呼。
+   * inline 模式（BEAN-9）：提交成功後不導頁、改呼叫此回呼（帶回完整輸入值）。
    * 同時預設收合選填欄位（D6：沖煮中斷感最小化）。
    */
-  onSuccess?: (id: string) => void
+  onSuccess?: (id: string, values: BeanInput) => void
 }
 
 const EMPTY_VALUES: BeanInput = {
@@ -74,7 +74,7 @@ export function BeanForm({ beanId, defaultValues, onSuccess }: BeanFormProps) {
     }
 
     if (onSuccess) {
-      onSuccess(result.id)
+      onSuccess(result.id, values)
       return
     }
     toast.success(beanId ? '豆子已更新' : '豆子已新增')

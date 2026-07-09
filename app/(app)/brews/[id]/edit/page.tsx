@@ -1,20 +1,54 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { BrewForm } from '@/components/brews/brew-form'
+import { brewRowToFormDefaults } from '@/lib/brew-form'
+import { listBeans } from '@/lib/queries/beans'
+import { getBrew, getBrewTags } from '@/lib/queries/brews'
+import { listGrinders } from '@/lib/queries/grinders'
+import { listFlavorTags } from '@/lib/queries/tags'
 
 export const metadata: Metadata = { title: '編輯沖煮' }
 
-// P5：BREW-10 實作編輯沖煮
+// BREW-10：重用 BrewForm，defaultValues 由 brewRowToFormDefaults 映射
 export default async function EditBrewPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const brew = await getBrew(id) // RLS：非本人拿到 null
+  if (!brew?.id) notFound()
+
+  const [beans, grinders, tags, brewTags] = await Promise.all([
+    listBeans(),
+    listGrinders(),
+    listFlavorTags(),
+    getBrewTags(brew.id),
+  ])
+
   return (
-    <div className="space-y-2">
+    <div className="max-w-3xl space-y-6">
       <h1 className="text-2xl font-semibold">編輯沖煮</h1>
-      <p className="text-muted-foreground text-sm">
-        編輯沖煮 {id}（W4 實作）
-      </p>
+      <BrewForm
+        brewId={brew.id}
+        brewedAtISO={brew.brewed_at ?? undefined}
+        defaultValues={brewRowToFormDefaults(
+          brew,
+          brewTags.map((t) => t.id),
+        )}
+        beans={beans.map((b) => ({
+          id: b.id,
+          name_batch: b.name_batch,
+          roaster: b.roaster,
+          roast_date: b.roast_date,
+        }))}
+        grinders={grinders.map((g) => ({ id: g.id, name: g.name }))}
+        tagOptions={tags.map((t) => ({
+          id: t.id,
+          name: t.name,
+          category: t.category,
+        }))}
+      />
     </div>
   )
 }

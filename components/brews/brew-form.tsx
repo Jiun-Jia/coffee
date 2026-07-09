@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
@@ -32,13 +32,18 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { BeanQuickAddDialog } from '@/components/beans/bean-quick-add-dialog'
+import {
+  FlavorTagSelect,
+  type TagOption,
+} from '@/components/brews/flavor-tag-select'
 import { RatingInput } from '@/components/brews/rating-input'
 import { TimeInput } from '@/components/brews/time-input'
 import { createBrew, updateBrew } from '@/app/(app)/brews/actions'
+import type { BrewFormValues } from '@/lib/brew-form'
 import { calcRatioValue, calcRestDays, formatRatio } from '@/lib/format'
 import { BREW_TYPE_OPTIONS } from '@/lib/validations/enums'
 import { brewSchema, type BrewInput } from '@/lib/validations/brew'
-import type { BrewType } from '@/lib/validations/enums'
 
 /** 表單選項用的精簡型別（由 Server Component 傳入） */
 export type BeanOption = {
@@ -48,42 +53,6 @@ export type BeanOption = {
   roast_date: string
 }
 export type GrinderOption = { id: string; name: string }
-
-/**
- * 表單值型別（各欄位由受控元件保證型別）；
- * 提交前經 brewSchema 於 client + server 各驗一次。
- */
-type BrewFormValues = {
-  bean_id: string
-  brew_type: BrewType
-  brewed_at: string // datetime-local 格式，提交時轉 ISO（時區風險 #5）
-  dripper: string
-  filter: string
-  grinder_id: string // '' = 未選
-  grind_setting: string
-  kettle: string
-  water_temp?: number
-  dose_g?: number
-  water_g?: number
-  ice_g?: number
-  ratio_include_ice: boolean
-  bloom_water_g?: number
-  bloom_time_sec?: number
-  pour_notes: string
-  total_time_sec?: number
-  aroma?: number
-  acidity?: number
-  sweetness?: number
-  bitterness?: number
-  body?: number
-  balance?: number
-  aftertaste?: number
-  overall?: number
-  tag_ids: string[]
-  flavor_notes: string
-  next_adjustment: string
-  notes: string
-}
 
 const SENSORY_FIELDS = [
   { name: 'aroma', label: '香氣' },
@@ -95,9 +64,8 @@ const SENSORY_FIELDS = [
   { name: 'aftertaste', label: '餘韻' },
 ] as const
 
-/** 本地當下時間 → datetime-local 值（client 專用，避免 SSR 時區/水合不一致） */
-function localNowValue(): string {
-  const d = new Date()
+/** Date → datetime-local 值（client 專用：瀏覽器時區，避免 SSR 水合不一致） */
+function toLocalInputValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
@@ -105,13 +73,18 @@ function localNowValue(): string {
 export function BrewForm({
   beans,
   grinders,
+  tagOptions,
   brewId,
   defaultValues,
+  brewedAtISO,
 }: {
   beans: BeanOption[]
   grinders: GrinderOption[]
+  tagOptions: TagOption[]
   brewId?: string
   defaultValues?: Partial<BrewFormValues>
+  /** 編輯模式：原沖煮時間（ISO），於 client 端轉為瀏覽器時區顯示 */
+  brewedAtISO?: string
 }) {
   const router = useRouter()
 
@@ -138,12 +111,16 @@ export function BrewForm({
     },
   })
 
-  // 預設「現在」：client mount 後設定，避免 SSR（UTC）與瀏覽器時區不一致
+  // brewed_at 於 client mount 後設定（瀏覽器時區）：
+  // 編輯帶原時間（brewedAtISO）、新增/複製帶「現在」
   useEffect(() => {
     if (!form.getValues('brewed_at')) {
-      form.setValue('brewed_at', localNowValue())
+      form.setValue(
+        'brewed_at',
+        toLocalInputValue(brewedAtISO ? new Date(brewedAtISO) : new Date()),
+      )
     }
-  }, [form])
+  }, [form, brewedAtISO])
 
   const [beanId, brewType, brewedAt, doseG, waterG, iceG, includeIce, grinderId] =
     useWatch({
@@ -160,8 +137,15 @@ export function BrewForm({
       ],
     })
 
+  // BEAN-9：inline 新增的豆子先併入本地選項（server revalidate 前即可選用）
+  const [localBeans, setLocalBeans] = useState<BeanOption[]>([])
+  const allBeans = useMemo(() => {
+    const seen = new Set(beans.map((b) => b.id))
+    return [...beans, ...localBeans.filter((b) => !seen.has(b.id))]
+  }, [beans, localBeans])
+
   const iced = brewType === 'iced_pour_over'
-  const selectedBean = beans.find((b) => b.id === beanId)
+  const selectedBean = allBeans.find((b) => b.id === beanId)
 
   // FR-4.1 養豆天數（D10：負值顯示「尚未烘焙」）
   const restDays =
@@ -211,7 +195,17 @@ export function BrewForm({
               name="bean_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>豆子 *</FormLabel>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>豆子 *</FormLabel>
+                    <BeanQuickAddDialog
+                      onCreated={(bean) => {
+                        setLocalBeans((prev) => [...prev, bean])
+                        form.setValue('bean_id', bean.id, {
+                          shouldValidate: true,
+                        })
+                      }}
+                    />
+                  </div>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
@@ -219,19 +213,16 @@ export function BrewForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {beans.map((bean) => (
+                      {allBeans.map((bean) => (
                         <SelectItem key={bean.id} value={bean.id}>
                           {bean.name_batch}（{bean.roaster}）
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {beans.length === 0 && (
+                  {allBeans.length === 0 && (
                     <p className="text-muted-foreground text-sm">
-                      還沒有豆子，先到
-                      <Link href="/beans/new" className="underline">
-                        新增豆子
-                      </Link>
+                      還沒有豆子，用右上角「新增豆子」快速建立
                     </p>
                   )}
                   <FormMessage />
@@ -554,6 +545,23 @@ export function BrewForm({
             ))}
             <FormField
               control={form.control}
+              name="tag_ids"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>風味標籤</FormLabel>
+                  <FormControl>
+                    <FlavorTagSelect
+                      options={tagOptions}
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="flavor_notes"
               render={({ field }) => (
                 <FormItem className="sm:col-span-2">
@@ -561,7 +569,7 @@ export function BrewForm({
                   <FormControl>
                     <Textarea
                       rows={2}
-                      placeholder="風味標籤功能即將推出，先以文字記錄"
+                      placeholder="標籤之外的風味描述"
                       {...field}
                     />
                   </FormControl>

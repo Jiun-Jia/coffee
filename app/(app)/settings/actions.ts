@@ -1,8 +1,18 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { grinderSchema, type GrinderInput } from '@/lib/validations/grinder'
+
+const tagNameSchema = z
+  .string()
+  .trim()
+  .min(1, '請輸入標籤名稱')
+  .max(30, '標籤名稱過長')
+
+/** 使用者自訂標籤的固定分類（PRD §8 分類保留給內建標籤） */
+const USER_TAG_CATEGORY = '自訂'
 
 export type GrinderActionResult =
   | { ok: true; id: string }
@@ -76,6 +86,89 @@ export async function updateGrinder(
 
   revalidatePath('/settings')
   return { ok: true, id }
+}
+
+export type CreateTagResult =
+  | { ok: true; tag: { id: string; name: string; category: string } }
+  | { ok: false; error: string }
+
+/**
+ * BREW-9：建立自訂標籤（scope=user，個人私有 FR-5.3/5.6）。
+ * 同名撞 unique（uq_tag_user）時直接回傳既有標籤讓使用者選用。
+ * alsoSuggest = true 時同步寫入 tag_suggestions（D18：提交建議同時建立個人標籤）。
+ */
+export async function createUserTag(
+  name: string,
+  alsoSuggest = false,
+): Promise<CreateTagResult> {
+  const parsed = tagNameSchema.safeParse(name)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? '名稱不正確' }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '請先登入' }
+
+  let tag: { id: string; name: string; category: string } | null = null
+  const { data, error } = await supabase
+    .from('flavor_tags')
+    .insert({
+      name: parsed.data,
+      category: USER_TAG_CATEGORY,
+      scope: 'user',
+      owner_user_id: user.id,
+    })
+    .select('id, name, category')
+    .single()
+
+  if (error) {
+    if (error.code !== '23505') {
+      return { ok: false, error: `建立失敗：${error.message}` }
+    }
+    // 已有同名自訂標籤 → 直接回傳既有的
+    const { data: existing } = await supabase
+      .from('flavor_tags')
+      .select('id, name, category')
+      .eq('scope', 'user')
+      .eq('name', parsed.data)
+      .maybeSingle()
+    if (!existing) return { ok: false, error: '建立失敗，請稍後再試' }
+    tag = existing
+  } else {
+    tag = data
+  }
+
+  if (alsoSuggest) {
+    await supabase
+      .from('tag_suggestions')
+      .insert({ user_id: user.id, name: parsed.data })
+    // 提交失敗不擋主流程（標籤本身已可用）
+  }
+
+  revalidatePath('/settings')
+  return { ok: true, tag }
+}
+
+/** BREW-17：刪除自訂標籤（brew_flavor_tags 由 FK cascade 一併移除關聯）。 */
+export async function deleteUserTag(
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { error, count } = await supabase
+    .from('flavor_tags')
+    .delete({ count: 'exact' })
+    .eq('id', id)
+    .eq('scope', 'user') // RLS 已限本人；雙保險不誤刪 system
+
+  if (error) return { ok: false, error: `刪除失敗：${error.message}` }
+  if (!count) return { ok: false, error: '找不到這個標籤或沒有權限' }
+
+  revalidatePath('/settings')
+  revalidatePath('/brews')
+  return { ok: true }
 }
 
 /** 刪除後歷史沖煮的 grinder_id 由 DB set null（刻度文字保留，D9）。 */

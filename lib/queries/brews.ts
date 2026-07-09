@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import type { RoastLevel } from '@/lib/validations/enums'
 import type { Database } from '@/types/database'
 
 export type BrewDetailRow = Database['public']['Views']['brew_details']['Row']
@@ -7,17 +8,86 @@ export type FlavorTag = Pick<
   'id' | 'name' | 'category'
 >
 
-/** 沖煮列表（讀 brew_details view）。W4 的 BREW-11 再加完整篩選參數。 */
-export async function listBrews(): Promise<BrewDetailRow[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('brew_details')
-    .select('*')
-    .order('brewed_at', { ascending: false })
-    .limit(200) // MVP 個人量級足夠；FR-7 完整篩選於 W4 實作
+/** P3 篩選參數（FR-7.1/7.2/7.3），與 URL searchParams 一一對應 */
+export type BrewFilters = {
+  q?: string
+  beanId?: string
+  roastLevel?: RoastLevel
+  origin?: string
+  process?: string
+  roaster?: string
+  dripper?: string
+  tagId?: string
+  minOverall?: number
+  from?: string // YYYY-MM-DD
+  to?: string
+  sort?: 'brewed_at' | 'overall'
+  dir?: 'asc' | 'desc'
+}
 
+/** ilike 樣式跳脫（%、_）並移除會破壞 .or() 語法的字元 */
+function likePattern(q: string) {
+  return `%${q.replace(/[%_]/g, '\\$&').replace(/[(),]/g, ' ')}%`
+}
+
+/** 沖煮列表（讀 brew_details view，BREW-11：FR-7 全參數）。 */
+export async function listBrews(
+  filters: BrewFilters = {},
+): Promise<BrewDetailRow[]> {
+  const supabase = await createClient()
+
+  // 標籤篩選：兩段查詢（先取有掛該標籤的 brew ids）
+  let tagBrewIds: string[] | null = null
+  if (filters.tagId) {
+    const { data, error } = await supabase
+      .from('brew_flavor_tags')
+      .select('brew_id')
+      .eq('tag_id', filters.tagId)
+    if (error) throw new Error(`讀取標籤篩選失敗：${error.message}`)
+    tagBrewIds = data.map((r) => r.brew_id)
+    if (tagBrewIds.length === 0) return []
+  }
+
+  let query = supabase.from('brew_details').select('*')
+
+  if (tagBrewIds) query = query.in('id', tagBrewIds)
+  if (filters.beanId) query = query.eq('bean_id', filters.beanId)
+  if (filters.roastLevel) query = query.eq('roast_level', filters.roastLevel)
+  if (filters.origin) query = query.eq('origin', filters.origin)
+  if (filters.process) query = query.eq('process', filters.process)
+  if (filters.roaster) query = query.eq('roaster', filters.roaster)
+  if (filters.dripper) query = query.eq('dripper', filters.dripper)
+  if (filters.minOverall) query = query.gte('overall', filters.minOverall)
+  // 日期區間以台北時區為口徑（與 rest_days 一致）
+  if (filters.from) query = query.gte('brewed_at', `${filters.from}T00:00:00+08:00`)
+  if (filters.to) query = query.lte('brewed_at', `${filters.to}T23:59:59+08:00`)
+  if (filters.q) {
+    const p = likePattern(filters.q)
+    query = query.or(`name_batch.ilike.${p},roaster.ilike.${p},notes.ilike.${p}`)
+  }
+
+  const sort = filters.sort ?? 'brewed_at'
+  const ascending = filters.dir === 'asc'
+  query = query.order(sort, { ascending })
+  if (sort !== 'brewed_at') {
+    query = query.order('brewed_at', { ascending: false }) // 次序穩定
+  }
+
+  const { data, error } = await query.limit(500) // D15：MVP 不分頁
   if (error) throw new Error(`讀取沖煮紀錄失敗：${error.message}`)
   return data
+}
+
+/** 濾杯下拉選項：使用者用過的濾杯（distinct） */
+export async function listDistinctDrippers(): Promise<string[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('brews')
+    .select('dripper')
+    .not('dripper', 'is', null)
+
+  if (error) throw new Error(`讀取濾杯選項失敗：${error.message}`)
+  return [...new Set(data.map((r) => r.dripper).filter(Boolean))] as string[]
 }
 
 export async function getBrew(id: string): Promise<BrewDetailRow | null> {
