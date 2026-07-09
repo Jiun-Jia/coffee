@@ -44,11 +44,16 @@ export function emptyToUndefined(value: unknown): unknown {
   return value
 }
 
-/** 選填字串：trim 後為空即視為未填 */
-export const optionalTrimmedString = z.preprocess(
-  (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
-  z.string().trim().max(500, '字數過多').optional(),
-)
+/**
+ * 選填字串：trim 後為空即視為未填。
+ * 用 transform 而非 preprocess，讓 z.input 維持 string（RHF resolver 型別才對得上）。
+ */
+export const optionalTrimmedString = z
+  .string()
+  .trim()
+  .max(500, '字數過多')
+  .transform((v) => (v === '' ? undefined : v))
+  .optional()
 
 /** 選填數值欄位包裝 */
 export function optionalNumber<T extends z.ZodType>(schema: T) {
