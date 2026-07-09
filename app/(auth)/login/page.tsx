@@ -1,12 +1,23 @@
 import type { Metadata } from 'next'
+import { LoginForm } from '@/components/auth/login-form'
 
 export const metadata: Metadata = { title: '登入' }
 
-// P1：AUTH-6 實作登入表單
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirectTo?: string; error?: string }>
+}) {
+  const { redirectTo, error } = await searchParams
+
   return (
-    <div className="text-muted-foreground text-center text-sm">
-      登入頁（W2 實作）
+    <div className="space-y-4">
+      {error === 'link_expired' && (
+        <p className="text-destructive text-center text-sm">
+          連結已失效或不正確，請重新操作。
+        </p>
+      )}
+      <LoginForm redirectTo={redirectTo} />
     </div>
   )
 }
