@@ -6,17 +6,24 @@
 
 1. 到 [supabase.com](https://supabase.com) 註冊/登入，**New project**：
    - Region 選 **Northeast Asia (Tokyo)**（D10）
-   - Database password 記下來（migration 推送會用到）
-2. 取得金鑰：Dashboard → Settings → API：
-   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `Publishable key`（或 legacy anon key）→ `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `Secret key`（或 legacy service_role）→ `SUPABASE_SERVICE_ROLE_KEY`
-3. 推送 schema（在 WSL 或任何有 supabase CLI 的環境）：
+   - Database password 記下來（migration 推送會用到；忘了可到
+     Settings → Database → Reset database password 重設）
+2. 取得金鑰與 URL（「Dashboard」＝ supabase.com 的專案主控台；新版介面分兩頁）：
+   - 左側 **Project Settings → API Keys**：
+     `Publishable key` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`；
+     `Secret key`（點 Reveal）→ `SUPABASE_SERVICE_ROLE_KEY`
+   - 左側 **Project Settings → Data API**：最上方 `Project URL`
+     → `NEXT_PUBLIC_SUPABASE_URL`（即 `https://<ref>.supabase.co`；
+     也可從右上角 Connect 按鈕查看）
+   - **Project Ref**：瀏覽器網址 `supabase.com/dashboard/project/<ref>` 的那段英數字
+     （或 Project Settings → General → Project ID）
+3. 推送 schema（在 WSL 或任何有 supabase CLI 的環境）。CLI 授權二選一：
+   `supabase login`（開瀏覽器）或頭像 → Account preferences → **Access Tokens**
+   產生 token 後設 `SUPABASE_ACCESS_TOKEN` 環境變數：
 
    ```bash
-   supabase login                 # 開瀏覽器授權
-   supabase link --project-ref <ref>   # ref 在 Dashboard URL 可見
-   supabase db push               # 套用全部 migrations
+   supabase link --project-ref <ref>   # 會問 database password
+   supabase db push                    # 套用全部 migrations
    ```
 
 4. 匯入內建風味標籤（seed 不會隨 push 執行）：
