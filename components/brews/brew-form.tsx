@@ -517,7 +517,6 @@ export function BrewForm({
                       <TimeInput
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder="0:30"
                       />
                     </FormControl>
                     <FormMessage />
@@ -534,7 +533,6 @@ export function BrewForm({
                       <TimeInput
                         value={field.value}
                         onChange={field.onChange}
-                        placeholder="2:30"
                       />
                     </FormControl>
                     <FormMessage />
