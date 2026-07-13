@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DeleteBeanDialog } from '@/components/beans/delete-bean-dialog'
+import { RestDaysChart } from '@/components/charts/rest-days-chart'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBean, getBeanBrews } from '@/lib/queries/beans'
 import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
@@ -99,7 +100,22 @@ export default async function BeanDetailPage({
           </Button>
         </div>
 
-        {/* VIZ-3/4 插槽：A1 養豆 vs 喜好度小圖（W5 掛入） */}
+        {brews.filter((b) => b.rest_days != null && b.overall != null)
+          .length >= 2 && (
+          <Card>
+            <CardContent className="pt-4">
+              <RestDaysChart
+                height={200}
+                points={brews
+                  .filter((b) => b.rest_days != null && b.overall != null)
+                  .map((b) => ({
+                    rest_days: b.rest_days as number,
+                    overall: b.overall as number,
+                  }))}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         {brews.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">

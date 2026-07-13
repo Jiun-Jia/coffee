@@ -13,61 +13,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { BrewFilters } from '@/components/brews/brew-filters'
+import { toBrewFilters, type BrewSearchParams } from '@/lib/brew-filters'
 import { formatRatio } from '@/lib/format'
 import { listBeans } from '@/lib/queries/beans'
-import {
-  listBrews,
-  listDistinctDrippers,
-  type BrewFilters as Filters,
-} from '@/lib/queries/brews'
+import { listBrews, listDistinctDrippers } from '@/lib/queries/brews'
 import { listFlavorTags } from '@/lib/queries/tags'
-import {
-  ROAST_LEVELS,
-  ROAST_LEVEL_LABELS,
-  type RoastLevel,
-} from '@/lib/validations/enums'
+import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
 export const metadata: Metadata = { title: '沖煮紀錄' }
 
-type SearchParams = {
-  q?: string
-  bean?: string
-  roast?: string
-  origin?: string
-  process?: string
-  roaster?: string
-  dripper?: string
-  tag?: string
-  minOverall?: string
-  from?: string
-  to?: string
-  sort?: string
-  dir?: string
-}
-
-function toFilters(sp: SearchParams): Filters {
-  const minOverall = Number(sp.minOverall)
-  return {
-    q: sp.q || undefined,
-    beanId: sp.bean || undefined,
-    roastLevel: ROAST_LEVELS.includes(sp.roast as RoastLevel)
-      ? (sp.roast as RoastLevel)
-      : undefined,
-    origin: sp.origin || undefined,
-    process: sp.process || undefined,
-    roaster: sp.roaster || undefined,
-    dripper: sp.dripper || undefined,
-    tagId: sp.tag || undefined,
-    minOverall:
-      Number.isInteger(minOverall) && minOverall >= 1 && minOverall <= 5
-        ? minOverall
-        : undefined,
-    from: sp.from || undefined,
-    to: sp.to || undefined,
-    sort: sp.sort === 'overall' ? 'overall' : 'brewed_at',
-    dir: sp.dir === 'asc' ? 'asc' : 'desc',
-  }
-}
+type SearchParams = BrewSearchParams
 
 function stars(overall: number | null) {
   const n = overall ?? 0
@@ -115,7 +70,7 @@ export default async function BrewsPage({
   searchParams: Promise<SearchParams>
 }) {
   const sp = await searchParams
-  const filters = toFilters(sp)
+  const filters = toBrewFilters(sp)
 
   const [brews, beans, drippers, tags] = await Promise.all([
     listBrews(filters),

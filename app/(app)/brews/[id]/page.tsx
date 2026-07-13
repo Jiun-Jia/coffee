@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BrewActions } from '@/components/brews/brew-actions'
+import { SensoryRadar } from '@/components/charts/sensory-radar'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBrew, getBrewTags } from '@/lib/queries/brews'
 import {
@@ -143,6 +144,35 @@ export default async function BrewDetailPage({
           </CardHeader>
           <CardContent className="text-sm whitespace-pre-wrap">
             {brew.pour_notes}
+          </CardContent>
+        </Card>
+      )}
+
+      {(brew.aroma ?? brew.acidity ?? brew.sweetness ?? brew.body) != null && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">感官雷達（A5）</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SensoryRadar
+              height={240}
+              series={[
+                {
+                  id: 'this',
+                  label: '本次沖煮',
+                  scores: {
+                    aroma: brew.aroma,
+                    acidity: brew.acidity,
+                    sweetness: brew.sweetness,
+                    bitterness: brew.bitterness,
+                    body: brew.body,
+                    balance: brew.balance,
+                    aftertaste: brew.aftertaste,
+                    overall: brew.overall,
+                  },
+                },
+              ]}
+            />
           </CardContent>
         </Card>
       )}

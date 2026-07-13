@@ -24,11 +24,13 @@
   --border: oklch(0.923 0.003 48.717);
   --input: oklch(0.923 0.003 48.717);
   --ring: oklch(0.709 0.01 56.259);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  /* 圖表分類色（dataviz skill 參考色盤，已對 #ffffff surface 跑過驗證器：
+     CVD ΔE 24.2 PASS；aqua/yellow 對比 <3:1 → 以圖例＋數值表格緩解） */
+  --chart-1: #2a78d6; /* blue */
+  --chart-2: #1baf7a; /* aqua */
+  --chart-3: #eda100; /* yellow */
+  --chart-4: #008300; /* green */
+  --chart-5: #4a3aa7; /* violet */
   --sidebar: oklch(0.985 0.001 106.423);
   --sidebar-foreground: oklch(0.147 0.004 49.25);
   --sidebar-primary: oklch(0.216 0.006 56.043);
@@ -59,11 +61,13 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.553 0.013 58.071);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  /* 同色盤的暗色階（對 #1c1917 surface 驗證：全數 ≥3:1；CVD 10.3 在
+     地板區間 → 圖例/直接標籤為必要的次要編碼） */
+  --chart-1: #3987e5;
+  --chart-2: #199e70;
+  --chart-3: #c98500;
+  --chart-4: #008300;
+  --chart-5: #9085e9;
   --sidebar: oklch(0.216 0.006 56.043);
   --sidebar-foreground: oklch(0.985 0.001 106.423);
   --sidebar-primary: oklch(0.488 0.243 264.376);
