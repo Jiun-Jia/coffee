@@ -96,7 +96,8 @@ export function TimeInput({
 
   return (
     <div className="space-y-1">
-      <div className="flex gap-1">
+      {/* flex-wrap + min-w：容器過窄時下拉換行，文字框永遠保有可視寬度 */}
+      <div className="flex flex-wrap gap-1">
         <Input
           value={text}
           inputMode="numeric"
@@ -104,7 +105,7 @@ export function TimeInput({
           aria-invalid={invalid}
           onChange={(e) => handleTextChange(e.target.value)}
           onBlur={handleBlur}
-          className="min-w-0 flex-1"
+          className="min-w-20 flex-1"
         />
         <Select
           value={minutes != null ? String(minutes) : ''}

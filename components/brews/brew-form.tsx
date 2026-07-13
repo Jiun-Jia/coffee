@@ -468,6 +468,12 @@ export function BrewForm({
                   step={1}
                 />
               )}
+              <NumberField
+                control={form.control}
+                name="bloom_water_g"
+                label="悶蒸水量（g）"
+                step={1}
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -499,13 +505,8 @@ export function BrewForm({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <NumberField
-                control={form.control}
-                name="bloom_water_g"
-                label="悶蒸水量（g）"
-                step={1}
-              />
+            {/* 時間欄位含分/秒下拉，需要半寬以上才放得下（勿塞四欄格） */}
+            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="bloom_time_sec"
