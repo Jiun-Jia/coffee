@@ -3,13 +3,15 @@ import { createServerClient } from '@supabase/ssr'
 import { getPublicEnv } from '@/lib/env'
 import type { Database } from '@/types/database'
 
+/** 認證頁：已登入者訪問時導回首頁 */
+const AUTH_PAGES = ['/login', '/register', '/forgot-password']
+
 /** 未登入也可存取的路徑（前綴比對） */
 const PUBLIC_PATHS = [
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
+  ...AUTH_PAGES,
+  '/reset-password', // 需 recovery session，登入中也可訪問
   '/auth', // email 連結驗證入口（/auth/confirm）
+  '/api/keepalive', // cron 保活（route 內以 CRON_SECRET 驗證）
 ]
 
 function isPublicPath(pathname: string) {
@@ -75,8 +77,11 @@ export async function updateSession(request: NextRequest) {
     return redirectResponse
   }
 
-  if (user && isPublicPath(pathname) && !pathname.startsWith('/reset-password')) {
-    // 已登入者訪認證頁（重設密碼除外）→ 回首頁
+  const isAuthPage = AUTH_PAGES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  )
+  if (user && isAuthPage) {
+    // 已登入者訪認證頁 → 回首頁
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     url.search = ''

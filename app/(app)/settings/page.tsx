@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { AccountSection } from '@/components/settings/account-section'
+import { ExportSection } from '@/components/settings/export-section'
 import { GrinderManager } from '@/components/settings/grinder-manager'
 import { TagManager } from '@/components/settings/tag-manager'
 import { getCurrentProfile } from '@/lib/auth/profile'
@@ -37,7 +38,7 @@ export default async function SettingsPage() {
           status: s.status,
         }))}
       />
-      {/* VIZ-12：CSV 匯出區塊 */}
+      <ExportSection />
     </div>
   )
 }
