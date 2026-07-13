@@ -15,10 +15,11 @@ const MINUTE_OPTIONS = Array.from({ length: 16 }, (_, i) => i) // 0–15 分
 const SECOND_STEPS = Array.from({ length: 12 }, (_, i) => i * 5) // 0,5,…,55
 
 /**
- * BREW-5：時間輸入（混合式）。
- * 左側文字框接受 "m:ss" 或純秒數（桌面打字快）；
- * 右側分/秒下拉可點選（手機好按，秒以 5 秒為級距）。
- * 兩邊雙向同步，RHF 值一律是 int 秒（Q4）。
+ * BREW-5：時間輸入（混合式，雙向同步）。
+ * - 文字框打字時「可解析就即時提交」→ 分/秒下拉立刻跟著動；
+ *   失焦才把顯示正規化成 m:ss（打字中不改字串，避免游標跳動）。
+ * - 下拉點選 → 提交秒數並回寫文字框。
+ * RHF 值一律是 int 秒（Q4）。
  */
 export function TimeInput({
   value,
@@ -34,6 +35,21 @@ export function TimeInput({
   )
   const [invalid, setInvalid] = useState(false)
 
+  // 外部 value 變動（下拉提交、RHF reset、複製帶入）→ 同步文字框。
+  // 「render 中調整 state」是 React 官方的 derived-state 模式（compiler 安全）；
+  // 若目前文字已代表同一個值（打字中）則不改字串。
+  const [prevValue, setPrevValue] = useState(value)
+  if (value !== prevValue) {
+    setPrevValue(value)
+    const trimmed = text.trim()
+    const textParsed =
+      trimmed === '' ? undefined : (parseTimeToSeconds(trimmed) ?? undefined)
+    if (textParsed !== value) {
+      setText(value != null ? formatSecondsToMSS(value) : '')
+      setInvalid(false)
+    }
+  }
+
   const minutes = value != null ? Math.floor(value / 60) : undefined
   const seconds = value != null ? value % 60 : undefined
   // 手動輸入的非 5 倍數秒（如 2:47）也要出現在下拉中
@@ -42,22 +58,40 @@ export function TimeInput({
       ? [...SECOND_STEPS, seconds].sort((a, b) => a - b)
       : SECOND_STEPS
 
-  function commit(total: number | undefined) {
-    setInvalid(false)
-    onChange(total)
-    setText(total != null ? formatSecondsToMSS(total) : '')
+  /** 打字：可解析就即時提交（下拉即時跟動），解析失敗留到失焦再標錯 */
+  function handleTextChange(raw: string) {
+    setText(raw)
+    const trimmed = raw.trim()
+    if (trimmed === '') {
+      setInvalid(false)
+      onChange(undefined)
+      return
+    }
+    const parsed = parseTimeToSeconds(trimmed)
+    if (parsed !== null) {
+      setInvalid(false)
+      onChange(parsed)
+    }
   }
 
-  function commitText() {
-    const raw = text.trim()
-    if (raw === '') return commit(undefined)
-    const parsed = parseTimeToSeconds(raw)
+  /** 失焦：正規化顯示為 m:ss，無法解析才標錯 */
+  function handleBlur() {
+    const trimmed = text.trim()
+    if (trimmed === '') return
+    const parsed = parseTimeToSeconds(trimmed)
     if (parsed === null) {
       setInvalid(true)
       onChange(undefined)
       return
     }
-    commit(parsed)
+    setText(formatSecondsToMSS(parsed))
+  }
+
+  /** 下拉點選：提交並回寫文字框 */
+  function commitFromSelect(total: number) {
+    setInvalid(false)
+    onChange(total)
+    setText(formatSecondsToMSS(total))
   }
 
   return (
@@ -68,13 +102,13 @@ export function TimeInput({
           inputMode="numeric"
           placeholder={placeholder}
           aria-invalid={invalid}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={commitText}
+          onChange={(e) => handleTextChange(e.target.value)}
+          onBlur={handleBlur}
           className="min-w-0 flex-1"
         />
         <Select
           value={minutes != null ? String(minutes) : ''}
-          onValueChange={(v) => commit(Number(v) * 60 + (seconds ?? 0))}
+          onValueChange={(v) => commitFromSelect(Number(v) * 60 + (seconds ?? 0))}
         >
           <SelectTrigger className="w-[4.5rem] shrink-0" aria-label="分">
             <SelectValue placeholder="分" />
@@ -89,7 +123,7 @@ export function TimeInput({
         </Select>
         <Select
           value={seconds != null ? String(seconds) : ''}
-          onValueChange={(v) => commit((minutes ?? 0) * 60 + Number(v))}
+          onValueChange={(v) => commitFromSelect((minutes ?? 0) * 60 + Number(v))}
         >
           <SelectTrigger className="w-[4.5rem] shrink-0" aria-label="秒">
             <SelectValue placeholder="秒" />
