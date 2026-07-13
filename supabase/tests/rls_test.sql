@@ -47,6 +47,9 @@ values ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000
 insert into public.grinders (id, user_id, name)
 values ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'C40');
 
+insert into public.equipment (id, user_id, kind, name)
+values ('50000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a', 'dripper', 'V60-01');
+
 insert into public.brews (id, user_id, bean_id, grinder_id, dose_g, water_g, overall)
 values ('30000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a',
         '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 15, 240, 4);
@@ -132,6 +135,9 @@ begin
 
   select count(*) into n from public.grinders;
   if n <> 0 then raise exception 'FAIL: B 應看到 0 台磨豆機，實際 %', n; end if;
+
+  select count(*) into n from public.equipment;
+  if n <> 0 then raise exception 'FAIL: B 應看到 0 件器材，實際 %', n; end if;
 
   select count(*) into n from public.brew_flavor_tags;
   if n <> 0 then raise exception 'FAIL: B 應看到 0 筆掛標籤關聯，實際 %', n; end if;

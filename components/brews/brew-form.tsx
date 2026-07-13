@@ -39,8 +39,10 @@ import {
 } from '@/components/brews/flavor-tag-select'
 import { RatingInput } from '@/components/brews/rating-input'
 import { TimeInput } from '@/components/brews/time-input'
+import { ComboboxInput } from '@/components/forms/combobox-input'
 import { createBrew, updateBrew } from '@/app/(app)/brews/actions'
 import type { BrewFormValues } from '@/lib/brew-form'
+import { showInvalidToast } from '@/lib/form-errors'
 import { calcRatioValue, calcRestDays, formatRatio } from '@/lib/format'
 import { BREW_TYPE_OPTIONS } from '@/lib/validations/enums'
 import { brewSchema, type BrewInput } from '@/lib/validations/brew'
@@ -53,6 +55,24 @@ export type BeanOption = {
   roast_date: string
 }
 export type GrinderOption = { id: string; name: string }
+export type EquipmentOptions = {
+  dripper: string[]
+  filter: string[]
+  kettle: string[]
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  bean_id: '豆子',
+  brewed_at: '日期時間',
+  water_temp: '水溫',
+  dose_g: '粉量',
+  water_g: '水量',
+  ice_g: '冰量',
+  bloom_water_g: '悶蒸水量',
+  bloom_time_sec: '悶蒸時間',
+  total_time_sec: '總時間',
+  overall: '整體喜好度',
+}
 
 const SENSORY_FIELDS = [
   { name: 'aroma', label: '香氣' },
@@ -74,6 +94,7 @@ export function BrewForm({
   beans,
   grinders,
   tagOptions,
+  equipmentOptions,
   brewId,
   defaultValues,
   brewedAtISO,
@@ -81,6 +102,7 @@ export function BrewForm({
   beans: BeanOption[]
   grinders: GrinderOption[]
   tagOptions: TagOption[]
+  equipmentOptions: EquipmentOptions
   brewId?: string
   defaultValues?: Partial<BrewFormValues>
   /** 編輯模式：原沖煮時間（ISO），於 client 端轉為瀏覽器時區顯示 */
@@ -183,7 +205,12 @@ export function BrewForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form
+        onSubmit={form.handleSubmit(onSubmit, (errors) =>
+          showInvalidToast(errors, FIELD_LABELS),
+        )}
+        className="space-y-6"
+      >
         {/* ── 基本 ─────────────────────────────── */}
         <Card>
           <CardHeader>
@@ -299,7 +326,13 @@ export function BrewForm({
                 <FormItem>
                   <FormLabel>濾杯</FormLabel>
                   <FormControl>
-                    <Input placeholder="例：V60-01" {...field} />
+                    <ComboboxInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={equipmentOptions.dripper}
+                      placeholder="選擇或輸入濾杯"
+                      emptyHint="可在「設定 › 我的器材」建立常用清單"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -312,7 +345,13 @@ export function BrewForm({
                 <FormItem>
                   <FormLabel>濾紙</FormLabel>
                   <FormControl>
-                    <Input placeholder="例：Cafec 漂白" {...field} />
+                    <ComboboxInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={equipmentOptions.filter}
+                      placeholder="選擇或輸入濾紙"
+                      emptyHint="可在「設定 › 我的器材」建立常用清單"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -381,7 +420,13 @@ export function BrewForm({
                 <FormItem>
                   <FormLabel>手沖壺</FormLabel>
                   <FormControl>
-                    <Input placeholder="例：Fellow Stagg" {...field} />
+                    <ComboboxInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={equipmentOptions.kettle}
+                      placeholder="選擇或輸入手沖壺"
+                      emptyHint="可在「設定 › 我的器材」建立常用清單"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

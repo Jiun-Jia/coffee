@@ -24,10 +24,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { ComboboxInput } from '@/components/forms/combobox-input'
 import { cn } from '@/lib/utils'
 import { createBean, updateBean } from '@/app/(app)/beans/actions'
+import { showInvalidToast } from '@/lib/form-errors'
+import { PROCESS_PRESETS } from '@/lib/presets'
 import { ROAST_LEVEL_OPTIONS } from '@/lib/validations/enums'
 import { beanSchema, type BeanInput } from '@/lib/validations/bean'
+
+const FIELD_LABELS: Record<string, string> = {
+  roaster: '烘豆店家/品牌',
+  name_batch: '豆名/批次',
+  origin: '產地',
+  roast_level: '焙度',
+  roast_date: '烘焙日期',
+}
 
 type BeanFormProps = {
   /** 編輯模式：既有豆子 id */
@@ -83,7 +94,12 @@ export function BeanForm({ beanId, defaultValues, onSuccess }: BeanFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form
+        onSubmit={form.handleSubmit(onSubmit, (errors) =>
+          showInvalidToast(errors, FIELD_LABELS),
+        )}
+        className="space-y-4"
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
@@ -199,7 +215,12 @@ export function BeanForm({ beanId, defaultValues, onSuccess }: BeanFormProps) {
               <FormItem>
                 <FormLabel>處理法</FormLabel>
                 <FormControl>
-                  <Input placeholder="例：水洗" {...field} />
+                  <ComboboxInput
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    options={[...PROCESS_PRESETS]}
+                    placeholder="選擇或輸入處理法"
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

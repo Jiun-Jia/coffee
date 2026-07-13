@@ -1,5 +1,3 @@
-// 依 supabase gen types typescript 格式手寫（W1 時本機 stack 未啟動）。
-// 本機 Supabase 啟動後請以 `pnpm db:types` 重新產生覆蓋本檔。
 export type Json =
   | string
   | number
@@ -9,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       beans: {
@@ -23,7 +46,7 @@ export type Database = {
           origin: string
           process: string | null
           roast_date: string
-          roast_level: Database['public']['Enums']['roast_level']
+          roast_level: Database["public"]["Enums"]["roast_level"]
           roaster: string
           updated_at: string
           user_id: string
@@ -40,7 +63,7 @@ export type Database = {
           origin: string
           process?: string | null
           roast_date: string
-          roast_level: Database['public']['Enums']['roast_level']
+          roast_level: Database["public"]["Enums"]["roast_level"]
           roaster: string
           updated_at?: string
           user_id: string
@@ -57,7 +80,7 @@ export type Database = {
           origin?: string
           process?: string | null
           roast_date?: string
-          roast_level?: Database['public']['Enums']['roast_level']
+          roast_level?: Database["public"]["Enums"]["roast_level"]
           roaster?: string
           updated_at?: string
           user_id?: string
@@ -65,11 +88,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: 'beans_user_id_fkey'
-            columns: ['user_id']
+            foreignKeyName: "beans_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: 'profiles'
-            referencedColumns: ['id']
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -88,25 +111,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: 'brew_flavor_tags_brew_id_fkey'
-            columns: ['brew_id']
+            foreignKeyName: "brew_flavor_tags_brew_id_fkey"
+            columns: ["brew_id"]
             isOneToOne: false
-            referencedRelation: 'brews'
-            referencedColumns: ['id']
+            referencedRelation: "brew_details"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'brew_flavor_tags_brew_id_fkey'
-            columns: ['brew_id']
+            foreignKeyName: "brew_flavor_tags_brew_id_fkey"
+            columns: ["brew_id"]
             isOneToOne: false
-            referencedRelation: 'brew_details'
-            referencedColumns: ['id']
+            referencedRelation: "brews"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'brew_flavor_tags_tag_id_fkey'
-            columns: ['tag_id']
+            foreignKeyName: "brew_flavor_tags_tag_id_fkey"
+            columns: ["tag_id"]
             isOneToOne: false
-            referencedRelation: 'flavor_tags'
-            referencedColumns: ['id']
+            referencedRelation: "flavor_tags"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -121,7 +144,7 @@ export type Database = {
           bloom_time_sec: number | null
           bloom_water_g: number | null
           body: number | null
-          brew_type: Database['public']['Enums']['brew_type']
+          brew_type: Database["public"]["Enums"]["brew_type"]
           brewed_at: string
           created_at: string
           dose_g: number
@@ -155,7 +178,7 @@ export type Database = {
           bloom_time_sec?: number | null
           bloom_water_g?: number | null
           body?: number | null
-          brew_type?: Database['public']['Enums']['brew_type']
+          brew_type?: Database["public"]["Enums"]["brew_type"]
           brewed_at?: string
           created_at?: string
           dose_g: number
@@ -189,7 +212,7 @@ export type Database = {
           bloom_time_sec?: number | null
           bloom_water_g?: number | null
           body?: number | null
-          brew_type?: Database['public']['Enums']['brew_type']
+          brew_type?: Database["public"]["Enums"]["brew_type"]
           brewed_at?: string
           created_at?: string
           dose_g?: number
@@ -215,25 +238,57 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: 'brews_bean_id_fkey'
-            columns: ['bean_id']
+            foreignKeyName: "brews_bean_id_fkey"
+            columns: ["bean_id"]
             isOneToOne: false
-            referencedRelation: 'beans'
-            referencedColumns: ['id']
+            referencedRelation: "beans"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'brews_grinder_id_fkey'
-            columns: ['grinder_id']
+            foreignKeyName: "brews_grinder_id_fkey"
+            columns: ["grinder_id"]
             isOneToOne: false
-            referencedRelation: 'grinders'
-            referencedColumns: ['id']
+            referencedRelation: "grinders"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'brews_user_id_fkey'
-            columns: ['user_id']
+            foreignKeyName: "brews_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: 'profiles'
-            referencedColumns: ['id']
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment: {
+        Row: {
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["equipment_kind"]
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["equipment_kind"]
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["equipment_kind"]
+          name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -244,7 +299,7 @@ export type Database = {
           id: string
           name: string
           owner_user_id: string | null
-          scope: Database['public']['Enums']['tag_scope']
+          scope: Database["public"]["Enums"]["tag_scope"]
         }
         Insert: {
           category: string
@@ -252,7 +307,7 @@ export type Database = {
           id?: string
           name: string
           owner_user_id?: string | null
-          scope?: Database['public']['Enums']['tag_scope']
+          scope?: Database["public"]["Enums"]["tag_scope"]
         }
         Update: {
           category?: string
@@ -260,15 +315,15 @@ export type Database = {
           id?: string
           name?: string
           owner_user_id?: string | null
-          scope?: Database['public']['Enums']['tag_scope']
+          scope?: Database["public"]["Enums"]["tag_scope"]
         }
         Relationships: [
           {
-            foreignKeyName: 'flavor_tags_owner_user_id_fkey'
-            columns: ['owner_user_id']
+            foreignKeyName: "flavor_tags_owner_user_id_fkey"
+            columns: ["owner_user_id"]
             isOneToOne: false
-            referencedRelation: 'profiles'
-            referencedColumns: ['id']
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -302,11 +357,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: 'grinders_user_id_fkey'
-            columns: ['user_id']
+            foreignKeyName: "grinders_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: 'profiles'
-            referencedColumns: ['id']
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -337,7 +392,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
-          status: Database['public']['Enums']['suggestion_status']
+          status: Database["public"]["Enums"]["suggestion_status"]
           user_id: string
         }
         Insert: {
@@ -345,7 +400,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
-          status?: Database['public']['Enums']['suggestion_status']
+          status?: Database["public"]["Enums"]["suggestion_status"]
           user_id: string
         }
         Update: {
@@ -353,16 +408,16 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
-          status?: Database['public']['Enums']['suggestion_status']
+          status?: Database["public"]["Enums"]["suggestion_status"]
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: 'tag_suggestions_user_id_fkey'
-            columns: ['user_id']
+            foreignKeyName: "tag_suggestions_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: 'profiles'
-            referencedColumns: ['id']
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -379,7 +434,7 @@ export type Database = {
           bloom_time_sec: number | null
           bloom_water_g: number | null
           body: number | null
-          brew_type: Database['public']['Enums']['brew_type'] | null
+          brew_type: Database["public"]["Enums"]["brew_type"] | null
           brewed_at: string | null
           created_at: string | null
           dose_g: number | null
@@ -402,7 +457,7 @@ export type Database = {
           ratio_value: number | null
           rest_days: number | null
           roast_date: string | null
-          roast_level: Database['public']['Enums']['roast_level'] | null
+          roast_level: Database["public"]["Enums"]["roast_level"] | null
           roaster: string | null
           sweetness: number | null
           total_time_sec: number | null
@@ -414,25 +469,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: 'brews_bean_id_fkey'
-            columns: ['bean_id']
+            foreignKeyName: "brews_bean_id_fkey"
+            columns: ["bean_id"]
             isOneToOne: false
-            referencedRelation: 'beans'
-            referencedColumns: ['id']
+            referencedRelation: "beans"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'brews_grinder_id_fkey'
-            columns: ['grinder_id']
+            foreignKeyName: "brews_grinder_id_fkey"
+            columns: ["grinder_id"]
             isOneToOne: false
-            referencedRelation: 'grinders'
-            referencedColumns: ['id']
+            referencedRelation: "grinders"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: 'brews_user_id_fkey'
-            columns: ['user_id']
+            foreignKeyName: "brews_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: 'profiles'
-            referencedColumns: ['id']
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -441,10 +496,11 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      brew_type: 'pour_over' | 'iced_pour_over'
-      roast_level: 'light' | 'medium_light' | 'medium' | 'medium_dark' | 'dark'
-      suggestion_status: 'pending' | 'approved' | 'rejected'
-      tag_scope: 'system' | 'user'
+      brew_type: "pour_over" | "iced_pour_over"
+      equipment_kind: "dripper" | "filter" | "kettle"
+      roast_level: "light" | "medium_light" | "medium" | "medium_dark" | "dark"
+      suggestion_status: "pending" | "approved" | "rejected"
+      tag_scope: "system" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -452,36 +508,33 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<
-  keyof DatabaseWithoutInternals,
-  'public'
->]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema['Tables'] &
-        DefaultSchema['Views'])
-    ? (DefaultSchema['Tables'] &
-        DefaultSchema['Views'])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -490,23 +543,23 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema['Tables']
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
-    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -515,23 +568,23 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema['Tables']
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
-    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -540,28 +593,50 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema['Enums']
+    | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
-    ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
-      brew_type: ['pour_over', 'iced_pour_over'],
-      roast_level: ['light', 'medium_light', 'medium', 'medium_dark', 'dark'],
-      suggestion_status: ['pending', 'approved', 'rejected'],
-      tag_scope: ['system', 'user'],
+      brew_type: ["pour_over", "iced_pour_over"],
+      equipment_kind: ["dripper", "filter", "kettle"],
+      roast_level: ["light", "medium_light", "medium", "medium_dark", "dark"],
+      suggestion_status: ["pending", "approved", "rejected"],
+      tag_scope: ["system", "user"],
     },
   },
 } as const
+

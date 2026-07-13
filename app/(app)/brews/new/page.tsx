@@ -6,6 +6,7 @@ import { BrewForm } from '@/components/brews/brew-form'
 import { brewRowToFormDefaults } from '@/lib/brew-form'
 import { listBeans } from '@/lib/queries/beans'
 import { getBrew, getBrewTags, listBrews } from '@/lib/queries/brews'
+import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
 import { listFlavorTags } from '@/lib/queries/tags'
 
@@ -16,12 +17,14 @@ export default async function NewBrewPage({
 }: {
   searchParams: Promise<{ beanId?: string; copyFrom?: string }>
 }) {
-  const [{ beanId, copyFrom }, beans, grinders, tags] = await Promise.all([
-    searchParams,
-    listBeans(),
-    listGrinders(),
-    listFlavorTags(),
-  ])
+  const [{ beanId, copyFrom }, beans, grinders, tags, equipment] =
+    await Promise.all([
+      searchParams,
+      listBeans(),
+      listGrinders(),
+      listFlavorTags(),
+      listEquipment(),
+    ])
 
   // BREW-15：複製既有紀錄（帶入除日期時間外的全部欄位，日期改為當下）
   let copyDefaults = undefined
@@ -66,6 +69,9 @@ export default async function NewBrewPage({
         )}
       </div>
       <BrewForm
+        // key：同路由換 searchParams（複製上一杯）時強制重掛，
+        // 否則 useForm 的 defaultValues 只在首次 mount 生效、帶不進新值
+        key={copyFrom ?? preselect ?? 'new'}
         beans={beans.map((b) => ({
           id: b.id,
           name_batch: b.name_batch,
@@ -78,6 +84,11 @@ export default async function NewBrewPage({
           name: t.name,
           category: t.category,
         }))}
+        equipmentOptions={{
+          dripper: equipment.dripper.map((e) => e.name),
+          filter: equipment.filter.map((e) => e.name),
+          kettle: equipment.kettle.map((e) => e.name),
+        }}
         defaultValues={{
           ...copyDefaults,
           ...(preselect ? { bean_id: preselect } : {}),

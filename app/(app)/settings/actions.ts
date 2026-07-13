@@ -88,6 +88,62 @@ export async function updateGrinder(
   return { ok: true, id }
 }
 
+const equipmentKindSchema = z.enum(['dripper', 'filter', 'kettle'])
+const equipmentNameSchema = z
+  .string()
+  .trim()
+  .min(1, '請輸入器材名稱')
+  .max(100, '名稱過長')
+
+/** 器材清單（濾杯/濾紙/手沖壺）：新增。同類別同名靠 DB unique 擋（23505）。 */
+export async function createEquipment(
+  kind: 'dripper' | 'filter' | 'kettle',
+  name: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const parsedKind = equipmentKindSchema.safeParse(kind)
+  const parsedName = equipmentNameSchema.safeParse(name)
+  if (!parsedKind.success || !parsedName.success) {
+    return { ok: false, error: '輸入格式不正確' }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '請先登入' }
+
+  const { data, error } = await supabase
+    .from('equipment')
+    .insert({ user_id: user.id, kind: parsedKind.data, name: parsedName.data })
+    .select('id')
+    .single()
+
+  if (error) {
+    if (error.code === '23505') return { ok: false, error: '已有同名器材' }
+    return { ok: false, error: `新增失敗：${error.message}` }
+  }
+
+  revalidatePath('/settings')
+  return { ok: true, id: data.id }
+}
+
+/** 器材清單：刪除（沖煮紀錄存文字不受影響）。 */
+export async function deleteEquipment(
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { error, count } = await supabase
+    .from('equipment')
+    .delete({ count: 'exact' })
+    .eq('id', id)
+
+  if (error) return { ok: false, error: `刪除失敗：${error.message}` }
+  if (!count) return { ok: false, error: '找不到這件器材或沒有權限' }
+
+  revalidatePath('/settings')
+  return { ok: true }
+}
+
 export type CreateTagResult =
   | { ok: true; tag: { id: string; name: string; category: string } }
   | { ok: false; error: string }

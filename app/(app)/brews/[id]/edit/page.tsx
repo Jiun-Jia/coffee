@@ -4,6 +4,7 @@ import { BrewForm } from '@/components/brews/brew-form'
 import { brewRowToFormDefaults } from '@/lib/brew-form'
 import { listBeans } from '@/lib/queries/beans'
 import { getBrew, getBrewTags } from '@/lib/queries/brews'
+import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
 import { listFlavorTags } from '@/lib/queries/tags'
 
@@ -19,11 +20,12 @@ export default async function EditBrewPage({
   const brew = await getBrew(id) // RLS：非本人拿到 null
   if (!brew?.id) notFound()
 
-  const [beans, grinders, tags, brewTags] = await Promise.all([
+  const [beans, grinders, tags, brewTags, equipment] = await Promise.all([
     listBeans(),
     listGrinders(),
     listFlavorTags(),
     getBrewTags(brew.id),
+    listEquipment(),
   ])
 
   return (
@@ -48,6 +50,11 @@ export default async function EditBrewPage({
           name: t.name,
           category: t.category,
         }))}
+        equipmentOptions={{
+          dripper: equipment.dripper.map((e) => e.name),
+          filter: equipment.filter.map((e) => e.name),
+          kettle: equipment.kettle.map((e) => e.name),
+        }}
       />
     </div>
   )
