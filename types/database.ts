@@ -40,6 +40,7 @@ export type Database = {
           altitude: string | null
           created_at: string
           farm: string | null
+          group_id: string | null
           id: string
           name_batch: string
           notes: string | null
@@ -57,6 +58,7 @@ export type Database = {
           altitude?: string | null
           created_at?: string
           farm?: string | null
+          group_id?: string | null
           id?: string
           name_batch: string
           notes?: string | null
@@ -74,6 +76,7 @@ export type Database = {
           altitude?: string | null
           created_at?: string
           farm?: string | null
+          group_id?: string | null
           id?: string
           name_batch?: string
           notes?: string | null
@@ -87,6 +90,13 @@ export type Database = {
           varietal?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "beans_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "beans_user_id_fkey"
             columns: ["user_id"]
@@ -365,6 +375,71 @@ export type Database = {
           },
         ]
       }
+      group_members: {
+        Row: {
+          group_id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          created_at: string
+          id: string
+          invite_code: string
+          name: string
+          owner_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invite_code: string
+          name: string
+          owner_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invite_code?: string
+          name?: string
+          owner_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "groups_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -436,6 +511,7 @@ export type Database = {
           body: number | null
           brew_type: Database["public"]["Enums"]["brew_type"] | null
           brewed_at: string | null
+          brewer_username: string | null
           created_at: string | null
           dose_g: number | null
           dripper: string | null
@@ -443,6 +519,7 @@ export type Database = {
           flavor_notes: string | null
           grind_setting: string | null
           grinder_id: string | null
+          group_id: string | null
           ice_g: number | null
           id: string | null
           kettle: string | null
@@ -469,6 +546,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "beans_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "brews_bean_id_fkey"
             columns: ["bean_id"]
             isOneToOne: false
@@ -493,7 +577,8 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      is_group_member: { Args: { gid: string }; Returns: boolean }
+      shares_group_with: { Args: { other: string }; Returns: boolean }
     }
     Enums: {
       brew_type: "pour_over" | "iced_pour_over"

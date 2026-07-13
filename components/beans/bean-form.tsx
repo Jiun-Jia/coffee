@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -40,10 +41,15 @@ const FIELD_LABELS: Record<string, string> = {
   roast_date: '烘焙日期',
 }
 
+/** 表單值：group_id 以 ''＝個人（schema transform 成 null 落庫） */
+type BeanFormValues = Omit<BeanInput, 'group_id'> & { group_id: string }
+
 type BeanFormProps = {
   /** 編輯模式：既有豆子 id */
   beanId?: string
-  defaultValues?: Partial<BeanInput>
+  defaultValues?: Partial<BeanFormValues>
+  /** FR-10.4：可選的群組歸屬（無群組時不顯示欄位）。inline 模式不傳＝個人豆 */
+  groups?: { id: string; name: string }[]
   /**
    * inline 模式（BEAN-9）：提交成功後不導頁、改呼叫此回呼（帶回完整輸入值）。
    * 同時預設收合選填欄位（D6：沖煮中斷感最小化）。
@@ -51,33 +57,42 @@ type BeanFormProps = {
   onSuccess?: (id: string, values: BeanInput) => void
 }
 
-const EMPTY_VALUES: BeanInput = {
+const EMPTY_VALUES = {
   roaster: '',
   name_batch: '',
   origin: '',
+  group_id: '',
   varietal: '',
   process: '',
   altitude: '',
   farm: '',
-  roast_level: 'medium_light',
+  roast_level: 'medium_light' as const,
   roast_date: '',
   notes: '',
 }
 
-export function BeanForm({ beanId, defaultValues, onSuccess }: BeanFormProps) {
+export function BeanForm({
+  beanId,
+  defaultValues,
+  groups,
+  onSuccess,
+}: BeanFormProps) {
   const router = useRouter()
   const inline = Boolean(onSuccess)
   const [showOptional, setShowOptional] = useState(!inline)
 
-  const form = useForm<BeanInput>({
-    resolver: zodResolver(beanSchema),
+  const form = useForm<BeanFormValues>({
+    // group_id 的 input（''|uuid）與 output（null|uuid）不同，需 cast；
+    // server action 會以同一 schema 再驗一次
+    resolver: zodResolver(beanSchema) as unknown as Resolver<BeanFormValues>,
     defaultValues: { ...EMPTY_VALUES, ...defaultValues },
   })
 
-  async function onSubmit(values: BeanInput) {
+  async function onSubmit(values: BeanFormValues) {
+    const payload = values as unknown as BeanInput
     const result = beanId
-      ? await updateBean(beanId, values)
-      : await createBean(values)
+      ? await updateBean(beanId, payload)
+      : await createBean(payload)
 
     if (!result.ok) {
       form.setError('root', { message: result.error })
@@ -85,7 +100,7 @@ export function BeanForm({ beanId, defaultValues, onSuccess }: BeanFormProps) {
     }
 
     if (onSuccess) {
-      onSuccess(result.id, values)
+      onSuccess(result.id, payload)
       return
     }
     toast.success(beanId ? '豆子已更新' : '豆子已新增')
@@ -177,6 +192,41 @@ export function BeanForm({ beanId, defaultValues, onSuccess }: BeanFormProps) {
               </FormItem>
             )}
           />
+          {groups && groups.length > 0 && (
+            <FormField
+              control={form.control}
+              name="group_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>歸屬</FormLabel>
+                  <Select
+                    onValueChange={(v) =>
+                      field.onChange(v === '__personal' ? '' : v)
+                    }
+                    value={field.value === '' ? '__personal' : field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="__personal">個人</SelectItem>
+                      {groups.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          群組：{g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    群組豆對全體成員可見，成員都能記錄沖煮
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         {!showOptional && (

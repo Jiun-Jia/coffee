@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table'
 import { DeleteBeanDialog } from '@/components/beans/delete-bean-dialog'
 import { RestDaysChart } from '@/components/charts/rest-days-chart'
+import { getCurrentProfile } from '@/lib/auth/profile'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBean, getBeanBrews } from '@/lib/queries/beans'
 import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
@@ -27,8 +28,11 @@ export default async function BeanDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const bean = await getBean(id)
+  const [bean, profile] = await Promise.all([getBean(id), getCurrentProfile()])
   if (!bean) notFound()
+  // FR-10.3：群組豆的編輯/刪除僅限建立者；群組豆的沖煮表顯示沖煮人
+  const isCreator = bean.user_id === profile?.id
+  const isGroupBean = bean.group_id !== null
 
   const brews = await getBeanBrews(id)
   // A1：標記最佳（overall 最高，同分取最新；列表已按 brewed_at desc 排序）
@@ -56,18 +60,23 @@ export default async function BeanDetailPage({
             <Badge variant="secondary">
               {ROAST_LEVEL_LABELS[bean.roast_level]}
             </Badge>
+            {bean.group_name && (
+              <Badge variant="outline">{bean.group_name}</Badge>
+            )}
           </div>
           <p className="text-muted-foreground text-sm">{bean.roaster}</p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/beans/${bean.id}/edit`}>
-              <Pencil className="size-4" />
-              編輯
-            </Link>
-          </Button>
-          <DeleteBeanDialog beanId={bean.id} beanName={bean.name_batch} />
-        </div>
+        {isCreator && (
+          <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/beans/${bean.id}/edit`}>
+                <Pencil className="size-4" />
+                編輯
+              </Link>
+            </Button>
+            <DeleteBeanDialog beanId={bean.id} beanName={bean.name_batch} />
+          </div>
+        )}
       </div>
 
       <Card>
@@ -127,6 +136,7 @@ export default async function BeanDetailPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>日期</TableHead>
+                  {isGroupBean && <TableHead>沖煮人</TableHead>}
                   <TableHead>刻度</TableHead>
                   <TableHead className="text-right">水溫</TableHead>
                   <TableHead className="text-right">粉水比</TableHead>
@@ -156,6 +166,9 @@ export default async function BeanDetailPage({
                         </Badge>
                       )}
                     </TableCell>
+                    {isGroupBean && (
+                      <TableCell>{brew.brewer_username ?? '—'}</TableCell>
+                    )}
                     <TableCell>{brew.grind_setting ?? '—'}</TableCell>
                     <TableCell className="text-right">
                       {brew.water_temp != null ? `${brew.water_temp}°C` : '—'}

@@ -82,6 +82,11 @@ export default async function BeansPage() {
                       >
                         {bean.name_batch}
                       </Link>
+                      {bean.group_name && (
+                        <Badge variant="outline" className="ml-2">
+                          {bean.group_name}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>{bean.roaster}</TableCell>
                     <TableCell>{bean.origin}</TableCell>
@@ -110,7 +115,14 @@ export default async function BeansPage() {
                 <Card>
                   <CardContent className="space-y-1 py-4">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{bean.name_batch}</span>
+                      <span className="font-medium">
+                        {bean.name_batch}
+                        {bean.group_name && (
+                          <Badge variant="outline" className="ml-1.5">
+                            {bean.group_name}
+                          </Badge>
+                        )}
+                      </span>
                       <Badge variant="secondary">
                         {ROAST_LEVEL_LABELS[bean.roast_level]}
                       </Badge>

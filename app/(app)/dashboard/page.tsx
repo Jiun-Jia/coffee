@@ -41,10 +41,8 @@ function StatTile({
 
 // P2：統計卡 + 最近沖煮 + 快速新增（VIZ-10/11，指標依 D16）
 export default async function DashboardPage() {
-  const [profile, stats] = await Promise.all([
-    getCurrentProfile(),
-    fetchDashboardStats(),
-  ])
+  const profile = await getCurrentProfile()
+  const stats = await fetchDashboardStats(profile?.id ?? '')
 
   const isNewUser = stats.totalBeans === 0
 
@@ -141,6 +139,9 @@ export default async function DashboardPage() {
                       {brew.name_batch}
                       <span className="text-muted-foreground ml-1 text-xs">
                         {brew.roaster}
+                        {brew.group_id && brew.brewer_username && (
+                          <> · {brew.brewer_username}</>
+                        )}
                       </span>
                     </p>
                     <p className="text-muted-foreground text-xs">

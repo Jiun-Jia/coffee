@@ -11,11 +11,13 @@ import { RadarPicker } from '@/components/analytics/radar-picker'
 import { RestDaysChart } from '@/components/charts/rest-days-chart'
 import { TagStatsChart } from '@/components/charts/tag-stats-chart'
 import { VariableScatter } from '@/components/charts/variable-scatter'
+import { getCurrentProfile } from '@/lib/auth/profile'
 import { toBrewFilters, type BrewSearchParams } from '@/lib/brew-filters'
 import { fetchTagStats } from '@/lib/queries/analytics'
 import { listBeans } from '@/lib/queries/beans'
 import { listBrews } from '@/lib/queries/brews'
 import { listGrinders } from '@/lib/queries/grinders'
+import { listMyGroups } from '@/lib/queries/groups'
 
 export const metadata: Metadata = { title: '分析' }
 
@@ -23,16 +25,24 @@ export const metadata: Metadata = { title: '分析' }
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<BrewSearchParams>
+  searchParams: Promise<BrewSearchParams & { scope?: string }>
 }) {
   const sp = await searchParams
   const filters = toBrewFilters(sp)
 
-  const [brews, beans, grinders] = await Promise.all([
+  const [visibleBrews, beans, grinders, profile, groups] = await Promise.all([
     listBrews(filters),
     listBeans(),
     listGrinders(),
+    getCurrentProfile(),
+    listMyGroups(),
   ])
+
+  // FR-10.7：預設只看我的；scope=all 才納入群組成員的紀錄
+  const brews =
+    sp.scope === 'all'
+      ? visibleBrews
+      : visibleBrews.filter((b) => b.user_id === profile?.id)
   const tagStats = await fetchTagStats(brews)
 
   const grinderName = new Map(grinders.map((g) => [g.id, g.name]))
@@ -89,6 +99,7 @@ export default async function AnalyticsPage({
       <AnalyticsFilters
         beans={beans.map((b) => ({ id: b.id, label: b.name_batch }))}
         origins={[...new Set(beans.map((b) => b.origin).filter(Boolean))]}
+        hasGroups={groups.length > 0}
       />
       <p className="text-muted-foreground text-sm">
         共 {brews.length} 筆沖煮納入分析

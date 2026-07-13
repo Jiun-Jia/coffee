@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BrewForm } from '@/components/brews/brew-form'
+import { getCurrentProfile } from '@/lib/auth/profile'
 import { brewRowToFormDefaults } from '@/lib/brew-form'
 import { listBeans } from '@/lib/queries/beans'
 import { getBrew, getBrewTags, listBrews } from '@/lib/queries/brews'
@@ -41,10 +42,14 @@ export default async function NewBrewPage({
   // 從豆子詳情「用這包沖煮」進來時預選（僅接受存在的豆子）
   const preselect = beans.some((b) => b.id === beanId) ? beanId : undefined
 
-  // D13「複製上一杯」：已選豆子 → 該豆最近一筆；未選 → 全域最近一筆
+  // D13「複製上一杯」：已選豆子 → 該豆最近一筆；未選 → 最近一筆。
+  // FR-10 後僅取「自己的」紀錄（複製朋友的參數請從其沖煮詳情頁操作）
   let copyLatestId: string | undefined
   if (!copyFrom) {
-    const recent = await listBrews()
+    const profile = await getCurrentProfile()
+    const recent = (await listBrews()).filter(
+      (b) => b.user_id === profile?.id,
+    )
     const source = preselect
       ? recent.find((b) => b.bean_id === preselect)
       : recent[0]

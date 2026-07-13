@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BrewActions } from '@/components/brews/brew-actions'
 import { SensoryRadar } from '@/components/charts/sensory-radar'
+import { getCurrentProfile } from '@/lib/auth/profile'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBrew, getBrewTags } from '@/lib/queries/brews'
 import {
@@ -53,9 +54,11 @@ export default async function BrewDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const brew = await getBrew(id)
+  const [brew, profile] = await Promise.all([getBrew(id), getCurrentProfile()])
   if (!brew) notFound()
   const tags = await getBrewTags(id)
+  // FR-10.5：他人的紀錄可看不可改（操作列僅本人顯示）
+  const isMine = brew.user_id === profile?.id
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -74,7 +77,7 @@ export default async function BrewDetailPage({
               </Badge>
             )}
           </div>
-          {brew.id && <BrewActions brewId={brew.id} />}
+          {brew.id && isMine && <BrewActions brewId={brew.id} />}
         </div>
         <p className="text-muted-foreground text-sm">
           <Link href={`/beans/${brew.bean_id}`} className="hover:underline">
@@ -82,6 +85,9 @@ export default async function BrewDetailPage({
             {brew.roast_level && ` · ${ROAST_LEVEL_LABELS[brew.roast_level]}`}
           </Link>
           {brew.rest_days != null && ` · 養豆 ${brew.rest_days} 天`}
+          {!isMine && brew.brewer_username && (
+            <> · 沖煮人：{brew.brewer_username}</>
+          )}
         </p>
       </div>
 

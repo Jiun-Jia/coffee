@@ -21,9 +21,11 @@ function taipeiMonthStartISO(now = new Date()): string {
 /**
  * P2 統計（D16）：本月沖煮數、本月平均喜好度、最常用豆子（近 90 天）、
  * 在養豆子數（烘焙日 60 天內）。個人量級直接以 listBrews 聚合。
+ * FR-10 後統計只算「自己的」沖煮（uid）；最近沖煮保留群組成員的（動態感）。
  */
-export async function fetchDashboardStats(): Promise<DashboardStats> {
-  const [brews, beans] = await Promise.all([listBrews(), listBeans()])
+export async function fetchDashboardStats(uid: string): Promise<DashboardStats> {
+  const [visibleBrews, beans] = await Promise.all([listBrews(), listBeans()])
+  const brews = visibleBrews.filter((b) => b.user_id === uid)
 
   const monthStart = new Date(taipeiMonthStartISO())
   const monthBrews = brews.filter(
@@ -64,7 +66,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
         : null,
     favoriteBean,
     restingBeans,
-    recentBrews: brews.slice(0, 5),
+    recentBrews: visibleBrews.slice(0, 5), // 含群組成員的最新動態
     totalBeans: beans.length,
   }
 }

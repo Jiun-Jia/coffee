@@ -166,6 +166,9 @@ export default async function BrewsPage({
                       {brew.name_batch}
                       <span className="text-muted-foreground ml-1 text-xs">
                         {brew.roaster}
+                        {brew.group_id && brew.brewer_username && (
+                          <> · {brew.brewer_username}</>
+                        )}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -206,6 +209,9 @@ export default async function BrewsPage({
                       <span className="text-sm">{stars(brew.overall)}</span>
                     </div>
                     <p className="text-muted-foreground text-sm">
+                      {brew.group_id && brew.brewer_username && (
+                        <>{brew.brewer_username} · </>
+                      )}
                       {brew.brewed_at?.slice(0, 10)} ·{' '}
                       {brew.water_temp != null ? `${brew.water_temp}°C · ` : ''}
                       {brew.ratio_value != null

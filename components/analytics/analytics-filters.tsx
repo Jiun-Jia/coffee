@@ -15,13 +15,16 @@ import { ROAST_LEVEL_OPTIONS } from '@/lib/validations/enums'
 
 const ALL = '__all'
 
-/** VIZ-8：P9 篩選列（豆子/焙度/產地/日期，與 P3 用相同的 URL 參數名） */
+/** VIZ-8：P9 篩選列（豆子/焙度/產地/日期＋FR-10.7 範圍切換） */
 export function AnalyticsFilters({
   beans,
   origins,
+  hasGroups,
 }: {
   beans: { id: string; label: string }[]
   origins: string[]
+  /** 有群組時才顯示「只看我的/含群組成員」切換 */
+  hasGroups: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -41,6 +44,20 @@ export function AnalyticsFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {hasGroups && (
+        <Select
+          value={get('scope') || 'mine'}
+          onValueChange={(v) => setParams({ scope: v === 'mine' ? '' : v })}
+        >
+          <SelectTrigger size="sm" className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mine">只看我的</SelectItem>
+            <SelectItem value="all">含群組成員</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
       <Select
         value={get('bean') || ALL}
         onValueChange={(v) => setParams({ bean: v === ALL ? '' : v })}

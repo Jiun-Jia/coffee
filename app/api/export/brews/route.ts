@@ -105,13 +105,15 @@ export async function GET() {
   } = await supabase.auth.getUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
 
-  // 分批讀取，避開 PostgREST 單次上限（M3-PLAN 風險 #8）
+  // 分批讀取，避開 PostgREST 單次上限（M3-PLAN 風險 #8）。
+  // FR-8：只匯出「自己的」紀錄（群組成員的可見但不屬於自己）。
   const rows: Row[] = []
   const PAGE = 500
   for (let fromIdx = 0; ; fromIdx += PAGE) {
     const { data, error } = await supabase
       .from('brew_details')
       .select('*')
+      .eq('user_id', user.id)
       .order('brewed_at', { ascending: false })
       .range(fromIdx, fromIdx + PAGE - 1)
     if (error) return new Response(`匯出失敗：${error.message}`, { status: 500 })
