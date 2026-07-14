@@ -94,17 +94,31 @@ export default async function NewBrewPage({
           name_batch: b.name_batch,
           roaster: b.roaster,
           roast_date: b.roast_date,
+          group_id: b.group_id,
         }))}
-        grinders={grinders.map((g) => ({ id: g.id, name: g.name }))}
+        grinders={grinders.map((g) => ({
+          id: g.id,
+          name: g.name,
+          group_id: g.group_id,
+        }))}
         tagOptions={tags.map((t) => ({
           id: t.id,
           name: t.name,
           category: t.category,
         }))}
         equipmentOptions={{
-          dripper: equipment.dripper.map((e) => e.name),
-          filter: equipment.filter.map((e) => e.name),
-          kettle: equipment.kettle.map((e) => e.name),
+          dripper: equipment.dripper.map((e) => ({
+            name: e.name,
+            group_id: e.group_id,
+          })),
+          filter: equipment.filter.map((e) => ({
+            name: e.name,
+            group_id: e.group_id,
+          })),
+          kettle: equipment.kettle.map((e) => ({
+            name: e.name,
+            group_id: e.group_id,
+          })),
         }}
         groups={groups.map((g) => ({ id: g.id, name: g.name }))}
         defaultValues={{

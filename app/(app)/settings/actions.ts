@@ -463,6 +463,28 @@ export async function approveTagSuggestion(
   return { ok: true }
 }
 
+/**
+ * FR-5.6：刪除群組標籤（誤核可的反悔機制）。
+ * RLS 限群組建立者；刪除後該標籤自所有沖煮移除（bft cascade）。
+ */
+export async function deleteGroupTag(
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { error, count } = await supabase
+    .from('flavor_tags')
+    .delete({ count: 'exact' })
+    .eq('id', id)
+    .eq('scope', 'group')
+
+  if (error) return { ok: false, error: `刪除失敗：${error.message}` }
+  if (!count) return { ok: false, error: '只有群組建立者可以刪除群組標籤' }
+
+  revalidatePath('/settings')
+  revalidatePath('/brews')
+  return { ok: true }
+}
+
 /** FR-5.6：拒絕提交（提交者的個人標籤不受影響）。 */
 export async function rejectTagSuggestion(
   suggestionId: string,

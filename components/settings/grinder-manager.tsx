@@ -115,8 +115,18 @@ function GrinderFormDialog({
                   <FormControl>
                     <ComboboxInput
                       value={field.value}
-                      onChange={field.onChange}
-                      options={[...GRINDER_PRESETS]}
+                      onChange={(name) => {
+                        field.onChange(name)
+                        // 選中預設機種 → 自動帶入刀盤類型與備註
+                        const preset = GRINDER_PRESETS.find(
+                          (p) => p.name === name,
+                        )
+                        if (preset) {
+                          form.setValue('burr_type', preset.burr_type)
+                          form.setValue('notes', preset.notes)
+                        }
+                      }}
+                      options={GRINDER_PRESETS.map((p) => p.name)}
                       placeholder="選擇常見機種或自行輸入"
                     />
                   </FormControl>

@@ -60,6 +60,21 @@ export async function listMySuggestions(): Promise<
   }))
 }
 
+export type GroupTag = { id: string; name: string; group_id: string }
+
+/** 各群組的群組標籤（RLS：成員可見；刪除權在建立者）。 */
+export async function listGroupTags(): Promise<GroupTag[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('flavor_tags')
+    .select('id, name, group_id')
+    .eq('scope', 'group')
+    .order('name')
+
+  if (error) throw new Error(`讀取群組標籤失敗：${error.message}`)
+  return data.filter((t) => t.group_id !== null) as GroupTag[]
+}
+
 export type PendingSuggestion = {
   id: string
   name: string

@@ -28,6 +28,7 @@ import {
   approveTagSuggestion,
   createGroup,
   deleteGroup,
+  deleteGroupTag,
   joinGroupByCode,
   leaveGroup,
   regenerateInviteCode,
@@ -35,7 +36,52 @@ import {
 } from '@/app/(app)/settings/actions'
 import { removeGroupMember } from '@/app/(app)/settings/actions'
 import type { MyGroup } from '@/lib/queries/groups'
-import type { PendingSuggestion } from '@/lib/queries/tags'
+import type { GroupTag, PendingSuggestion } from '@/lib/queries/tags'
+
+/** 群組標籤 chip（建立者可刪 —— 誤核可的反悔機制） */
+function GroupTagChip({ tag, canDelete }: { tag: GroupTag; canDelete: boolean }) {
+  const [busy, setBusy] = useState(false)
+
+  async function onDelete() {
+    setBusy(true)
+    const result = await deleteGroupTag(tag.id)
+    setBusy(false)
+    if (!result.ok) toast.error(result.error)
+    else toast.success(`已刪除群組標籤「${tag.name}」`)
+  }
+
+  if (!canDelete) return <Badge variant="secondary">{tag.name}</Badge>
+
+  return (
+    <AlertDialog>
+      <Badge variant="secondary" className="gap-1">
+        {tag.name}
+        <AlertDialogTrigger asChild>
+          <button
+            type="button"
+            aria-label={`刪除群組標籤 ${tag.name}`}
+            disabled={busy}
+            className="hover:text-destructive"
+          >
+            <X className="size-3" />
+          </button>
+        </AlertDialogTrigger>
+      </Badge>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>刪除群組標籤「{tag.name}」？</AlertDialogTitle>
+          <AlertDialogDescription>
+            所有成員將無法再選用，已掛上此標籤的沖煮也會移除它。無法復原。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction onClick={onDelete}>刪除</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
 
 /** FR-5.6：群組建立者的標籤審核列 */
 function SuggestionReview({ suggestion }: { suggestion: PendingSuggestion }) {
@@ -143,10 +189,12 @@ function GroupCard({
   group,
   myUserId,
   pending,
+  tags,
 }: {
   group: MyGroup
   myUserId: string
   pending: PendingSuggestion[]
+  tags: GroupTag[]
 }) {
   async function onLeave() {
     const result = await leaveGroup(group.id)
@@ -217,6 +265,14 @@ function GroupCard({
           ))}
         </div>
       )}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-muted-foreground text-xs">群組標籤：</span>
+          {tags.map((tag) => (
+            <GroupTagChip key={tag.id} tag={tag} canDelete={group.isOwner} />
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
         {group.members.map((member) => (
           <Badge key={member.user_id} variant="secondary" className="gap-1">
@@ -243,10 +299,12 @@ export function GroupManager({
   groups,
   myUserId,
   pendingSuggestions = [],
+  groupTags = [],
 }: {
   groups: MyGroup[]
   myUserId: string
   pendingSuggestions?: PendingSuggestion[]
+  groupTags?: GroupTag[]
 }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
@@ -293,6 +351,7 @@ export function GroupManager({
             group={group}
             myUserId={myUserId}
             pending={pendingSuggestions.filter((s) => s.group_id === group.id)}
+            tags={groupTags.filter((t) => t.group_id === group.id)}
           />
         ))}
 

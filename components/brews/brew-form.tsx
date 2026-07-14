@@ -63,12 +63,18 @@ export type BeanOption = {
   name_batch: string
   roaster: string
   roast_date: string
+  group_id: string | null
 }
-export type GrinderOption = { id: string; name: string }
+export type GrinderOption = {
+  id: string
+  name: string
+  group_id: string | null
+}
+export type EquipmentItem = { name: string; group_id: string | null }
 export type EquipmentOptions = {
-  dripper: string[]
-  filter: string[]
-  kettle: string[]
+  dripper: EquipmentItem[]
+  filter: EquipmentItem[]
+  kettle: EquipmentItem[]
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -104,6 +110,21 @@ function toLocalInputValue(d: Date): string {
 function withPresets(own: string[], presets: readonly string[]): string[] {
   const seen = new Set(own)
   return [...own, ...presets.filter((p) => !seen.has(p))]
+}
+
+/**
+ * 器材/磨豆機依豆子歸屬過濾：
+ * - 個人豆（或未選豆）→ 只列我的個人器材
+ * - 群組豆 → 該群組的器材＋我的個人器材（在自己家沖群組豆很常見）
+ * 其他群組的器材一律不列。
+ */
+function byBeanOwnership<T extends { group_id: string | null }>(
+  items: T[],
+  beanGroupId: string | null,
+): T[] {
+  return items.filter(
+    (i) => i.group_id === null || i.group_id === beanGroupId,
+  )
 }
 
 export function BrewForm({
@@ -191,6 +212,27 @@ export function BrewForm({
 
   const iced = brewType === 'iced_pour_over'
   const selectedBean = allBeans.find((b) => b.id === beanId)
+
+  // 器材/磨豆機依豆子歸屬過濾（編輯舊紀錄時保留原選定的磨豆機不被濾掉）。
+  // 純運算即可，React Compiler 會自動記憶化。
+  const beanGroupId = selectedBean?.group_id ?? null
+  const ownershipGrinders = byBeanOwnership(grinders, beanGroupId)
+  const currentGrinder = grinders.find((g) => g.id === grinderId)
+  const visibleGrinders =
+    currentGrinder && !ownershipGrinders.some((g) => g.id === currentGrinder.id)
+      ? [...ownershipGrinders, currentGrinder]
+      : ownershipGrinders
+  const visibleEquipment = {
+    dripper: byBeanOwnership(equipmentOptions.dripper, beanGroupId).map(
+      (e) => e.name,
+    ),
+    filter: byBeanOwnership(equipmentOptions.filter, beanGroupId).map(
+      (e) => e.name,
+    ),
+    kettle: byBeanOwnership(equipmentOptions.kettle, beanGroupId).map(
+      (e) => e.name,
+    ),
+  }
 
   // FR-4.1 養豆天數（D10：負值顯示「尚未烘焙」）
   const restDays =
@@ -353,7 +395,7 @@ export function BrewForm({
                       value={field.value}
                       onChange={field.onChange}
                       options={withPresets(
-                        equipmentOptions.dripper,
+                        visibleEquipment.dripper,
                         DRIPPER_PRESETS,
                       )}
                       placeholder="選擇或輸入濾杯"
@@ -374,7 +416,7 @@ export function BrewForm({
                       value={field.value}
                       onChange={field.onChange}
                       options={withPresets(
-                        equipmentOptions.filter,
+                        visibleEquipment.filter,
                         FILTER_PRESETS,
                       )}
                       placeholder="選擇或輸入濾紙"
@@ -401,7 +443,7 @@ export function BrewForm({
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="none">未指定</SelectItem>
-                      {grinders.map((g) => (
+                      {visibleGrinders.map((g) => (
                         <SelectItem key={g.id} value={g.id}>
                           {g.name}
                         </SelectItem>
@@ -451,7 +493,7 @@ export function BrewForm({
                       value={field.value}
                       onChange={field.onChange}
                       options={withPresets(
-                        equipmentOptions.kettle,
+                        visibleEquipment.kettle,
                         KETTLE_PRESETS,
                       )}
                       placeholder="選擇或輸入手沖壺"
@@ -596,11 +638,14 @@ export function BrewForm({
             <CardTitle className="text-base">注水分段</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {pourArray.fields.length === 0 && (
-              <p className="text-muted-foreground text-sm">
-                選填：逐段記錄「結束時間＋累積水量＋手法」，重現沖煮節奏最關鍵的資訊。
-              </p>
-            )}
+            {/* 說明常駐（新增分段後仍保留，讓使用者知道每欄要填什麼） */}
+            <p className="text-muted-foreground text-sm">
+              選填：逐段記錄「<span className="text-foreground">結束時間</span>＋
+              <span className="text-foreground">累積水量</span>＋
+              <span className="text-foreground">手法</span>」。
+              悶蒸已於上方欄位記錄，分段從悶蒸後的第一次注水開始即可
+              （想把悶蒸列為第 1 段也可以，依個人習慣）。
+            </p>
             {pourArray.fields.map((field, index) => (
               <div
                 key={field.id}

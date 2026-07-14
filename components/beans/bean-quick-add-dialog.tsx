@@ -45,6 +45,7 @@ export function BeanQuickAddDialog({
               name_batch: values.name_batch,
               roaster: values.roaster,
               roast_date: values.roast_date,
+              group_id: values.group_id ?? null,
             })
             setOpen(false)
             toast.success(`已新增「${values.name_batch}」並選用`)

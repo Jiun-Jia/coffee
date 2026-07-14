@@ -10,6 +10,7 @@ import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
 import { listMyGroups } from '@/lib/queries/groups'
 import {
+  listGroupTags,
   listMySuggestions,
   listMyTags,
   listPendingSuggestions,
@@ -27,6 +28,7 @@ export default async function SettingsPage() {
     suggestions,
     groups,
     pendingSuggestions,
+    groupTags,
   ] = await Promise.all([
     getCurrentProfile(),
     listGrinders(),
@@ -35,6 +37,7 @@ export default async function SettingsPage() {
     listMySuggestions(),
     listMyGroups(),
     listPendingSuggestions(),
+    listGroupTags(),
   ])
 
   const groupOptions = groups.map((g) => ({ id: g.id, name: g.name }))
@@ -57,6 +60,7 @@ export default async function SettingsPage() {
         groups={groups}
         myUserId={profile?.id ?? ''}
         pendingSuggestions={pendingSuggestions}
+        groupTags={groupTags}
       />
       <GrinderManager
         grinders={grinders}
