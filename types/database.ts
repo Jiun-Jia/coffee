@@ -319,6 +319,7 @@ export type Database = {
           id: string
           kind: Database["public"]["Enums"]["equipment_kind"]
           name: string
+          status: string
           user_id: string
         }
         Insert: {
@@ -327,6 +328,7 @@ export type Database = {
           id?: string
           kind: Database["public"]["Enums"]["equipment_kind"]
           name: string
+          status?: string
           user_id: string
         }
         Update: {
@@ -335,6 +337,7 @@ export type Database = {
           id?: string
           kind?: Database["public"]["Enums"]["equipment_kind"]
           name?: string
+          status?: string
           user_id?: string
         }
         Relationships: [
@@ -407,6 +410,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          status: string
           updated_at: string
           user_id: string
         }
@@ -417,6 +421,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          status?: string
           updated_at?: string
           user_id: string
         }
@@ -427,6 +432,7 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          status?: string
           updated_at?: string
           user_id?: string
         }

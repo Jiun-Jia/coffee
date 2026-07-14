@@ -17,8 +17,26 @@ const tagNameSchema = z
 const USER_TAG_CATEGORY = '自訂'
 
 export type GrinderActionResult =
-  | { ok: true; id: string }
+  | { ok: true; id: string; pending?: boolean }
   | { ok: false; error: string }
+
+/**
+ * FR-10.9b：群組器材審核 —— 成員新增為 pending（提案）、
+ * 建立者新增直接 approved。回傳 status 或錯誤（找不到群組）。
+ */
+async function resolveGearStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  groupId: string,
+): Promise<{ status: 'pending' | 'approved' } | { error: string }> {
+  const { data: group } = await supabase
+    .from('groups')
+    .select('owner_id')
+    .eq('id', groupId)
+    .maybeSingle()
+  if (!group) return { error: '找不到這個群組' }
+  return { status: group.owner_id === userId ? 'approved' : 'pending' }
+}
 
 /**
  * BEAN-7：磨豆機 CRUD。
@@ -43,9 +61,21 @@ export async function createGrinder(
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: '請先登入' }
 
+  let status: 'pending' | 'approved' = 'approved'
+  if (groupId) {
+    const resolved = await resolveGearStatus(supabase, user.id, groupId)
+    if ('error' in resolved) return { ok: false, error: resolved.error }
+    status = resolved.status
+  }
+
   const { data, error } = await supabase
     .from('grinders')
-    .insert({ ...parsed.data, user_id: user.id, group_id: groupId ?? null })
+    .insert({
+      ...parsed.data,
+      user_id: user.id,
+      group_id: groupId ?? null,
+      status,
+    })
     .select('id')
     .single()
 
@@ -57,7 +87,7 @@ export async function createGrinder(
   }
 
   revalidatePath('/settings')
-  return { ok: true, id: data.id }
+  return { ok: true, id: data.id, pending: status === 'pending' }
 }
 
 export async function updateGrinder(
@@ -301,7 +331,9 @@ export async function createEquipment(
   kind: 'dripper' | 'filter' | 'kettle',
   name: string,
   groupId?: string, // FR-10.9：歸屬群組（undefined＝個人）
-): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; id: string; pending?: boolean } | { ok: false; error: string }
+> {
   const parsedKind = equipmentKindSchema.safeParse(kind)
   const parsedName = equipmentNameSchema.safeParse(name)
   if (!parsedKind.success || !parsedName.success) {
@@ -314,6 +346,13 @@ export async function createEquipment(
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: '請先登入' }
 
+  let status: 'pending' | 'approved' = 'approved'
+  if (groupId) {
+    const resolved = await resolveGearStatus(supabase, user.id, groupId)
+    if ('error' in resolved) return { ok: false, error: resolved.error }
+    status = resolved.status
+  }
+
   const { data, error } = await supabase
     .from('equipment')
     .insert({
@@ -321,6 +360,7 @@ export async function createEquipment(
       kind: parsedKind.data,
       name: parsedName.data,
       group_id: groupId ?? null,
+      status,
     })
     .select('id')
     .single()
@@ -331,7 +371,33 @@ export async function createEquipment(
   }
 
   revalidatePath('/settings')
-  return { ok: true, id: data.id }
+  return { ok: true, id: data.id, pending: status === 'pending' }
+}
+
+/**
+ * FR-10.9b：群組建立者核可成員提案的器材（RLS 擋非建立者的 update）。
+ * 核可後全體成員的沖煮下拉即可選用。
+ */
+export async function approveGroupGear(
+  gearKind: 'grinder' | 'dripper' | 'filter' | 'kettle',
+  id: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const table = gearKind === 'grinder' ? 'grinders' : 'equipment'
+  const { data, error } = await supabase
+    .from(table)
+    .update({ status: 'approved' })
+    .eq('id', id)
+    .eq('status', 'pending')
+    .select('id')
+
+  if (error) return { ok: false, error: `核可失敗：${error.message}` }
+  if (!data.length) {
+    return { ok: false, error: '找不到這筆提案，或只有群組建立者可以核可' }
+  }
+
+  revalidatePath('/settings')
+  return { ok: true }
 }
 
 /** 器材清單：刪除（沖煮紀錄存文字不受影響）。 */

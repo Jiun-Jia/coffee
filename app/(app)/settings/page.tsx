@@ -8,7 +8,7 @@ import { TagManager } from '@/components/settings/tag-manager'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
-import { listMyGroups } from '@/lib/queries/groups'
+import { listGroupGear, listMyGroups } from '@/lib/queries/groups'
 import {
   listGroupTags,
   listMySuggestions,
@@ -29,25 +29,21 @@ export default async function SettingsPage() {
     groups,
     pendingSuggestions,
     groupTags,
+    groupGear,
   ] = await Promise.all([
     getCurrentProfile(),
-    listGrinders(),
-    listEquipment(),
+    listGrinders({ personalOnly: true }),
+    listEquipment({ personalOnly: true }),
     listMyTags(),
     listMySuggestions(),
     listMyGroups(),
     listPendingSuggestions(),
     listGroupTags(),
+    listGroupGear(),
   ])
 
-  const groupOptions = groups.map((g) => ({ id: g.id, name: g.name }))
   const pickEquipment = (kind: 'dripper' | 'filter' | 'kettle') =>
-    equipment[kind].map((e) => ({
-      id: e.id,
-      name: e.name,
-      user_id: e.user_id,
-      group_name: e.group_name,
-    }))
+    equipment[kind].map((e) => ({ id: e.id, name: e.name }))
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -61,20 +57,15 @@ export default async function SettingsPage() {
         myUserId={profile?.id ?? ''}
         pendingSuggestions={pendingSuggestions}
         groupTags={groupTags}
+        groupGear={groupGear}
       />
-      <GrinderManager
-        grinders={grinders}
-        groups={groupOptions}
-        myUserId={profile?.id ?? ''}
-      />
+      <GrinderManager grinders={grinders} />
       <EquipmentManager
         equipment={{
           dripper: pickEquipment('dripper'),
           filter: pickEquipment('filter'),
           kettle: pickEquipment('kettle'),
         }}
-        groups={groupOptions}
-        myUserId={profile?.id ?? ''}
       />
       <TagManager
         tags={myTags.map((t) => ({

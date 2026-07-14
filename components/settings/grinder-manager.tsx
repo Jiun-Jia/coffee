@@ -16,7 +16,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -41,13 +40,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { ComboboxInput } from '@/components/forms/combobox-input'
 import {
   createGrinder,
@@ -58,19 +50,14 @@ import { GRINDER_PRESETS } from '@/lib/presets'
 import type { GrinderWithCount } from '@/lib/queries/grinders'
 import { grinderSchema, type GrinderInput } from '@/lib/validations/grinder'
 
-type GroupOption = { id: string; name: string }
-
 function GrinderFormDialog({
   grinder,
-  groups,
   trigger,
 }: {
   grinder?: GrinderWithCount
-  groups: GroupOption[]
   trigger: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
-  const [groupId, setGroupId] = useState('') // ''＝個人（僅新增時可選）
   const form = useForm<GrinderInput>({
     resolver: zodResolver(grinderSchema),
     defaultValues: {
@@ -83,7 +70,7 @@ function GrinderFormDialog({
   async function onSubmit(values: GrinderInput) {
     const result = grinder
       ? await updateGrinder(grinder.id, values)
-      : await createGrinder(values, groupId || undefined)
+      : await createGrinder(values)
 
     if (!result.ok) {
       form.setError('name', { message: result.error })
@@ -91,10 +78,7 @@ function GrinderFormDialog({
     }
     toast.success(grinder ? '磨豆機已更新' : '磨豆機已新增')
     setOpen(false)
-    if (!grinder) {
-      form.reset()
-      setGroupId('')
-    }
+    if (!grinder) form.reset()
   }
 
   return (
@@ -134,29 +118,6 @@ function GrinderFormDialog({
                 </FormItem>
               )}
             />
-            {!grinder && groups.length > 0 && (
-              <FormItem>
-                <FormLabel>歸屬</FormLabel>
-                <Select
-                  value={groupId === '' ? '__personal' : groupId}
-                  onValueChange={(v) =>
-                    setGroupId(v === '__personal' ? '' : v)
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__personal">個人</SelectItem>
-                    {groups.map((g) => (
-                      <SelectItem key={g.id} value={g.id}>
-                        群組：{g.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
             <FormField
               control={form.control}
               name="burr_type"
@@ -236,22 +197,14 @@ function DeleteGrinderButton({ grinder }: { grinder: GrinderWithCount }) {
   )
 }
 
-/** 設定頁磨豆機管理（BEAN-8 + FR-10.9 群組共用）。 */
-export function GrinderManager({
-  grinders,
-  groups,
-  myUserId,
-}: {
-  grinders: GrinderWithCount[]
-  groups: GroupOption[]
-  myUserId: string
-}) {
+/** 設定頁磨豆機管理（BEAN-8）。僅個人磨豆機；群組共用的在群組卡片管理（FR-10.9b）。 */
+export function GrinderManager({ grinders }: { grinders: GrinderWithCount[] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>磨豆機</CardTitle>
         <CardDescription>
-          沖煮紀錄的「刻度」會綁定磨豆機解讀；群組磨豆機全體成員可選用
+          沖煮紀錄的「刻度」會綁定磨豆機解讀；群組共用磨豆機請到上方「群組」卡片新增
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -266,42 +219,31 @@ export function GrinderManager({
             className="flex items-center justify-between rounded-md border px-3 py-2"
           >
             <div>
-              <p className="text-sm font-medium">
-                {grinder.name}
-                {grinder.group_name && (
-                  <Badge variant="outline" className="ml-2">
-                    {grinder.group_name}
-                  </Badge>
-                )}
-              </p>
+              <p className="text-sm font-medium">{grinder.name}</p>
               <p className="text-muted-foreground text-xs">
                 {[grinder.burr_type, `${grinder.brew_count} 筆沖煮`]
                   .filter(Boolean)
                   .join(' · ')}
               </p>
             </div>
-            {grinder.user_id === myUserId && (
-              <div className="flex gap-1">
-                <GrinderFormDialog
-                  grinder={grinder}
-                  groups={groups}
-                  trigger={
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`編輯 ${grinder.name}`}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                  }
-                />
-                <DeleteGrinderButton grinder={grinder} />
-              </div>
-            )}
+            <div className="flex gap-1">
+              <GrinderFormDialog
+                grinder={grinder}
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`編輯 ${grinder.name}`}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                }
+              />
+              <DeleteGrinderButton grinder={grinder} />
+            </div>
           </div>
         ))}
         <GrinderFormDialog
-          groups={groups}
           trigger={
             <Button variant="outline" size="sm">
               <Plus className="size-4" />

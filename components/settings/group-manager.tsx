@@ -25,8 +25,21 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ComboboxInput } from '@/components/forms/combobox-input'
+import {
+  approveGroupGear,
   approveTagSuggestion,
+  createEquipment,
+  createGrinder,
   createGroup,
+  deleteEquipment,
+  deleteGrinder,
   deleteGroup,
   deleteGroupTag,
   joinGroupByCode,
@@ -35,8 +48,249 @@ import {
   rejectTagSuggestion,
 } from '@/app/(app)/settings/actions'
 import { removeGroupMember } from '@/app/(app)/settings/actions'
-import type { MyGroup } from '@/lib/queries/groups'
+import {
+  DRIPPER_PRESETS,
+  FILTER_PRESETS,
+  GRINDER_PRESETS,
+  KETTLE_PRESETS,
+} from '@/lib/presets'
+import type {
+  GroupGearItem,
+  GroupGearKind,
+  MyGroup,
+} from '@/lib/queries/groups'
 import type { GroupTag, PendingSuggestion } from '@/lib/queries/tags'
+
+// ============ FR-10.9b 群組共用器材（成員提案 → 建立者核可） ============
+
+const GEAR_KINDS: { kind: GroupGearKind; label: string }[] = [
+  { kind: 'grinder', label: '磨豆機' },
+  { kind: 'dripper', label: '濾杯' },
+  { kind: 'filter', label: '濾紙' },
+  { kind: 'kettle', label: '手沖壺' },
+]
+const GEAR_PRESETS: Record<GroupGearKind, readonly string[]> = {
+  grinder: GRINDER_PRESETS.map((p) => p.name),
+  dripper: DRIPPER_PRESETS,
+  filter: FILTER_PRESETS,
+  kettle: KETTLE_PRESETS,
+}
+
+function deleteGear(item: GroupGearItem) {
+  return item.gearKind === 'grinder'
+    ? deleteGrinder(item.id)
+    : deleteEquipment(item.id)
+}
+
+/** 群組器材 chip：待審核（建立者可核可/退回、提案人可撤回）或已生效（建立者可刪）。 */
+function GearChip({
+  item,
+  isOwner,
+  myUserId,
+}: {
+  item: GroupGearItem
+  isOwner: boolean
+  myUserId: string
+}) {
+  const [busy, setBusy] = useState(false)
+  const pending = item.status === 'pending'
+
+  async function onApprove() {
+    setBusy(true)
+    const result = await approveGroupGear(item.gearKind, item.id)
+    setBusy(false)
+    if (!result.ok) toast.error(result.error)
+    else toast.success(`「${item.name}」已生效，全體成員可在沖煮選用`)
+  }
+
+  async function onRemove(kindOfAction: '退回' | '撤回' | '刪除') {
+    setBusy(true)
+    const result = await deleteGear(item)
+    setBusy(false)
+    if (!result.ok) toast.error(result.error)
+    else toast.success(`已${kindOfAction}「${item.name}」`)
+  }
+
+  if (pending) {
+    return (
+      <Badge variant="outline" className="gap-1">
+        {item.name}
+        <span className="text-muted-foreground text-xs">
+          待審核・{item.submitter}
+        </span>
+        {isOwner && (
+          <button
+            type="button"
+            aria-label={`核可 ${item.name}`}
+            title="核可"
+            disabled={busy}
+            onClick={onApprove}
+            className="hover:text-foreground"
+          >
+            <Check className="size-3" />
+          </button>
+        )}
+        {(isOwner || item.user_id === myUserId) && (
+          <button
+            type="button"
+            aria-label={`${isOwner ? '退回' : '撤回'} ${item.name}`}
+            title={isOwner ? '退回' : '撤回'}
+            disabled={busy}
+            onClick={() => onRemove(isOwner ? '退回' : '撤回')}
+            className="hover:text-destructive"
+          >
+            <X className="size-3" />
+          </button>
+        )}
+      </Badge>
+    )
+  }
+
+  if (!isOwner) return <Badge variant="secondary">{item.name}</Badge>
+
+  return (
+    <AlertDialog>
+      <Badge variant="secondary" className="gap-1">
+        {item.name}
+        <AlertDialogTrigger asChild>
+          <button
+            type="button"
+            aria-label={`刪除 ${item.name}`}
+            disabled={busy}
+            className="hover:text-destructive"
+          >
+            <X className="size-3" />
+          </button>
+        </AlertDialogTrigger>
+      </Badge>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>刪除共用器材「{item.name}」？</AlertDialogTitle>
+          <AlertDialogDescription>
+            成員將無法再於沖煮下拉選用。
+            {item.gearKind === 'grinder' &&
+              '已綁定它的沖煮紀錄會失去磨豆機綁定（刻度文字保留）。'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction onClick={() => onRemove('刪除')}>
+            刪除
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+/** 群組卡片的共用器材區：清單＋新增（成員新增為提案，建立者新增直接生效）。 */
+function GroupGearSection({
+  group,
+  gear,
+  myUserId,
+}: {
+  group: MyGroup
+  gear: GroupGearItem[]
+  myUserId: string
+}) {
+  const [kind, setKind] = useState<GroupGearKind>('dripper')
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function onAdd() {
+    const trimmed = name.trim()
+    if (!trimmed || busy) return
+    setBusy(true)
+    // 磨豆機選中預設機種 → 自動帶入刀盤類型與備註（FR-12）
+    const preset = GRINDER_PRESETS.find((p) => p.name === trimmed)
+    const result =
+      kind === 'grinder'
+        ? await createGrinder(
+            {
+              name: trimmed,
+              burr_type: preset?.burr_type ?? '',
+              notes: preset?.notes ?? '',
+            },
+            group.id,
+          )
+        : await createEquipment(kind, trimmed, group.id)
+    setBusy(false)
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
+    setName('')
+    toast.success(
+      result.pending
+        ? `已提交「${trimmed}」，待建立者核可後全員可選用`
+        : `已新增共用器材「${trimmed}」`,
+    )
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-muted-foreground text-xs font-medium">
+        共用器材（全員可在沖煮群組豆時選用
+        {group.isOwner ? '；成員提交由你核可' : '；提交後由建立者核可'}）
+      </p>
+      {GEAR_KINDS.map(({ kind: k, label }) => {
+        const items = gear.filter((g) => g.gearKind === k)
+        if (items.length === 0) return null
+        return (
+          <div key={k} className="flex flex-wrap items-center gap-1">
+            <span className="text-muted-foreground text-xs">{label}：</span>
+            {items.map((item) => (
+              <GearChip
+                key={item.id}
+                item={item}
+                isOwner={group.isOwner}
+                myUserId={myUserId}
+              />
+            ))}
+          </div>
+        )
+      })}
+      <div className="flex max-w-md gap-2">
+        <Select
+          value={kind}
+          onValueChange={(v) => setKind(v as GroupGearKind)}
+        >
+          <SelectTrigger size="sm" className="w-27 shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GEAR_KINDS.map(({ kind: k, label }) => (
+              <SelectItem key={k} value={k}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="min-w-32 flex-1">
+          <ComboboxInput
+            value={name}
+            onChange={setName}
+            options={[...GEAR_PRESETS[kind]]}
+            placeholder="選擇常見型號或自行輸入"
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onAdd}
+          disabled={busy || !name.trim()}
+          aria-label="新增共用器材"
+        >
+          {busy ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Plus className="size-4" />
+          )}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 /** 群組標籤 chip（建立者可刪 —— 誤核可的反悔機制） */
 function GroupTagChip({ tag, canDelete }: { tag: GroupTag; canDelete: boolean }) {
@@ -190,11 +444,13 @@ function GroupCard({
   myUserId,
   pending,
   tags,
+  gear,
 }: {
   group: MyGroup
   myUserId: string
   pending: PendingSuggestion[]
   tags: GroupTag[]
+  gear: GroupGearItem[]
 }) {
   async function onLeave() {
     const result = await leaveGroup(group.id)
@@ -273,6 +529,7 @@ function GroupCard({
           ))}
         </div>
       )}
+      <GroupGearSection group={group} gear={gear} myUserId={myUserId} />
       <div className="flex flex-wrap gap-1">
         {group.members.map((member) => (
           <Badge key={member.user_id} variant="secondary" className="gap-1">
@@ -300,11 +557,13 @@ export function GroupManager({
   myUserId,
   pendingSuggestions = [],
   groupTags = [],
+  groupGear = [],
 }: {
   groups: MyGroup[]
   myUserId: string
   pendingSuggestions?: PendingSuggestion[]
   groupTags?: GroupTag[]
+  groupGear?: GroupGearItem[]
 }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
@@ -352,6 +611,7 @@ export function GroupManager({
             myUserId={myUserId}
             pending={pendingSuggestions.filter((s) => s.group_id === group.id)}
             tags={groupTags.filter((t) => t.group_id === group.id)}
+            gear={groupGear.filter((g) => g.group_id === group.id)}
           />
         ))}
 

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import type { EquipmentKind } from '@/lib/queries/equipment'
 
 export type GroupMember = { user_id: string; username: string }
 export type MyGroup = {
@@ -36,4 +37,65 @@ export async function listMyGroups(): Promise<MyGroup[]> {
       username: m.profiles?.username ?? '（未知）',
     })),
   }))
+}
+
+// ============ FR-10.9b 群組共用器材（成員提案、建立者核可） ============
+
+export type GroupGearKind = 'grinder' | EquipmentKind
+export type GroupGearItem = {
+  id: string
+  gearKind: GroupGearKind
+  name: string
+  group_id: string
+  user_id: string
+  status: 'pending' | 'approved'
+  submitter: string
+}
+
+/** 全部群組器材（含待審核，RLS 限所屬群組），供設定頁群組卡片管理。 */
+export async function listGroupGear(): Promise<GroupGearItem[]> {
+  const supabase = await createClient()
+  const [grinders, equipment] = await Promise.all([
+    supabase
+      .from('grinders')
+      .select('id, name, group_id, user_id, status, profiles(username)')
+      .not('group_id', 'is', null)
+      .order('created_at'),
+    supabase
+      .from('equipment')
+      .select('id, kind, name, group_id, user_id, status, profiles(username)')
+      .not('group_id', 'is', null)
+      .order('created_at'),
+  ])
+  if (grinders.error) {
+    throw new Error(`讀取群組器材失敗：${grinders.error.message}`)
+  }
+  if (equipment.error) {
+    throw new Error(`讀取群組器材失敗：${equipment.error.message}`)
+  }
+
+  const toItem = (
+    row: {
+      id: string
+      name: string
+      group_id: string | null
+      user_id: string
+      status: string
+      profiles: { username: string } | null
+    },
+    gearKind: GroupGearKind,
+  ): GroupGearItem => ({
+    id: row.id,
+    gearKind,
+    name: row.name,
+    group_id: row.group_id!,
+    user_id: row.user_id,
+    status: row.status as GroupGearItem['status'],
+    submitter: row.profiles?.username ?? '（未知）',
+  })
+
+  return [
+    ...grinders.data.map((g) => toItem(g, 'grinder')),
+    ...equipment.data.map((e) => toItem(e, e.kind)),
+  ]
 }

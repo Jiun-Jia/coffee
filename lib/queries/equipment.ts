@@ -12,16 +12,23 @@ export const EQUIPMENT_KIND_LABELS: Record<EquipmentKind, string> = {
   kettle: '手沖壺',
 }
 
-/** 器材清單（本人的＋所屬群組的，FR-10.9），依類別分組。 */
-export async function listEquipment(): Promise<
-  Record<EquipmentKind, EquipmentRow[]>
-> {
+/**
+ * 器材清單依類別分組。預設只回已核可的（供沖煮表單，FR-10.9b）；
+ * personalOnly 只回個人的（供設定頁，群組器材改在群組卡片管理）。
+ */
+export async function listEquipment(opts?: {
+  personalOnly?: boolean
+}): Promise<Record<EquipmentKind, EquipmentRow[]>> {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('equipment')
     .select('*, groups(name)')
     .order('created_at')
+  query = opts?.personalOnly
+    ? query.is('group_id', null)
+    : query.eq('status', 'approved')
 
+  const { data, error } = await query
   if (error) throw new Error(`讀取器材失敗：${error.message}`)
 
   const grouped: Record<EquipmentKind, EquipmentRow[]> = {

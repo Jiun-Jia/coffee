@@ -379,6 +379,86 @@ begin
   if n <> 0 then raise exception 'FAIL: C 不應能改群組磨豆機'; end if;
 end $$;
 
+-- FR-10.9b 器材審核：成員只能提案（pending）且不能自核；建立者核可後交其管理
+do $$
+begin
+  -- A（建立者）直建的群組磨豆機預設即生效
+  perform 1 from public.grinders
+  where id = '20000000-0000-0000-0000-000000000002' and status = 'approved';
+  if not found then raise exception 'FAIL: 建立者直建的群組磨豆機應為 approved'; end if;
+
+  -- C 直插 approved 的群組器材應被拒
+  begin
+    insert into public.equipment (user_id, group_id, kind, name, status)
+    values ('00000000-0000-0000-0000-00000000000c',
+            '60000000-0000-0000-0000-000000000001', 'dripper', '偷渡濾杯', 'approved');
+    raise exception 'FAIL: 成員不應能直插 approved 的群組器材';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end $$;
+
+-- C 提案（pending）成功
+insert into public.equipment (id, user_id, group_id, kind, name, status)
+values ('80000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-00000000000c',
+        '60000000-0000-0000-0000-000000000001', 'dripper', '提案濾杯', 'pending');
+
+-- C 不能自核（update status → with check 拒絕）
+do $$
+begin
+  begin
+    update public.equipment set status = 'approved'
+    where id = '80000000-0000-0000-0000-000000000001';
+    raise exception 'FAIL: 成員不應能自行核可提案';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end $$;
+
+-- C 再提案一件並自行撤回（pending 可自刪）
+insert into public.equipment (id, user_id, group_id, kind, name, status)
+values ('80000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-00000000000c',
+        '60000000-0000-0000-0000-000000000001', 'kettle', '提案手沖壺', 'pending');
+
+do $$
+declare n int;
+begin
+  delete from public.equipment where id = '80000000-0000-0000-0000-000000000002';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 提案人應能撤回自己的 pending 提案'; end if;
+end $$;
+
+reset role;
+
+-- A（建立者）核可 C 的提案
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  update public.equipment set status = 'approved'
+  where id = '80000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 建立者應能核可成員的器材提案'; end if;
+end $$;
+
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
+-- 核可後提案人（非建立者）不可再刪（交由建立者管理）
+do $$
+declare n int;
+begin
+  delete from public.equipment where id = '80000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: 核可後成員不應能刪除群組器材'; end if;
+end $$;
+
 reset role;
 
 set local role authenticated;
@@ -451,6 +531,11 @@ set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","r
 do $$
 declare n int;
 begin
+  -- FR-10.9b：建立者可刪除已核可的群組器材（含成員提案的）
+  delete from public.equipment where id = '80000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 建立者應能刪除已核可的群組器材'; end if;
+
   delete from public.groups where id = '60000000-0000-0000-0000-000000000001';
   get diagnostics n = row_count;
   if n <> 1 then raise exception 'FAIL: A（建立者）應能解散群組'; end if;

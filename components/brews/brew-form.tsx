@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
@@ -48,11 +49,6 @@ import { ComboboxInput } from '@/components/forms/combobox-input'
 import { createBrew, updateBrew } from '@/app/(app)/brews/actions'
 import type { BrewFormValues } from '@/lib/brew-form'
 import { showInvalidToast } from '@/lib/form-errors'
-import {
-  DRIPPER_PRESETS,
-  FILTER_PRESETS,
-  KETTLE_PRESETS,
-} from '@/lib/presets'
 import { calcRatioValue, calcRestDays, formatRatio } from '@/lib/format'
 import { BREW_TYPE_OPTIONS } from '@/lib/validations/enums'
 import { brewSchema, type BrewInput } from '@/lib/validations/brew'
@@ -76,6 +72,9 @@ export type EquipmentOptions = {
   filter: EquipmentItem[]
   kettle: EquipmentItem[]
 }
+
+/** 器材下拉為空時的引導（清單來自設定頁登錄的器材，依豆子歸屬過濾） */
+const GEAR_EMPTY_HINT = '這包豆目前沒有可選器材，可到「設定」新增，或直接輸入文字'
 
 const FIELD_LABELS: Record<string, string> = {
   bean_id: '豆子',
@@ -104,12 +103,6 @@ const SENSORY_FIELDS = [
 function toLocalInputValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/** 使用者清單優先、預設建議墊底（去重） */
-function withPresets(own: string[], presets: readonly string[]): string[] {
-  const seen = new Set(own)
-  return [...own, ...presets.filter((p) => !seen.has(p))]
 }
 
 /**
@@ -382,6 +375,9 @@ export function BrewForm({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">器材</CardTitle>
+            <CardDescription>
+              選項為「設定」登錄的器材，依豆子歸屬顯示（群組豆＝該群組＋個人）；也可直接輸入文字
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <FormField
@@ -394,11 +390,9 @@ export function BrewForm({
                     <ComboboxInput
                       value={field.value}
                       onChange={field.onChange}
-                      options={withPresets(
-                        visibleEquipment.dripper,
-                        DRIPPER_PRESETS,
-                      )}
+                      options={visibleEquipment.dripper}
                       placeholder="選擇或輸入濾杯"
+                      emptyHint={GEAR_EMPTY_HINT}
                     />
                   </FormControl>
                   <FormMessage />
@@ -415,11 +409,9 @@ export function BrewForm({
                     <ComboboxInput
                       value={field.value}
                       onChange={field.onChange}
-                      options={withPresets(
-                        visibleEquipment.filter,
-                        FILTER_PRESETS,
-                      )}
+                      options={visibleEquipment.filter}
                       placeholder="選擇或輸入濾紙"
+                      emptyHint={GEAR_EMPTY_HINT}
                     />
                   </FormControl>
                   <FormMessage />
@@ -492,11 +484,9 @@ export function BrewForm({
                     <ComboboxInput
                       value={field.value}
                       onChange={field.onChange}
-                      options={withPresets(
-                        visibleEquipment.kettle,
-                        KETTLE_PRESETS,
-                      )}
+                      options={visibleEquipment.kettle}
                       placeholder="選擇或輸入手沖壺"
+                      emptyHint={GEAR_EMPTY_HINT}
                     />
                   </FormControl>
                   <FormMessage />
