@@ -7,7 +7,7 @@ import { BrewActions } from '@/components/brews/brew-actions'
 import { SensoryRadar } from '@/components/charts/sensory-radar'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
-import { getBrew, getBrewTags } from '@/lib/queries/brews'
+import { getBrew, getBrewPours, getBrewTags } from '@/lib/queries/brews'
 import {
   BREW_TYPE_LABELS,
   ROAST_LEVEL_LABELS,
@@ -56,7 +56,7 @@ export default async function BrewDetailPage({
   const { id } = await params
   const [brew, profile] = await Promise.all([getBrew(id), getCurrentProfile()])
   if (!brew) notFound()
-  const tags = await getBrewTags(id)
+  const [tags, pours] = await Promise.all([getBrewTags(id), getBrewPours(id)])
   // FR-10.5：他人的紀錄可看不可改（操作列僅本人顯示）
   const isMine = brew.user_id === profile?.id
 
@@ -143,13 +143,39 @@ export default async function BrewDetailPage({
         ]}
       />
 
-      {brew.pour_notes && (
+      {(pours.length > 0 || brew.pour_notes) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">注水手法</CardTitle>
+            <CardTitle className="text-base">注水分段</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm whitespace-pre-wrap">
-            {brew.pour_notes}
+          <CardContent className="space-y-2 text-sm">
+            {pours.length > 0 && (
+              <ol className="space-y-1">
+                {pours.map((pour) => (
+                  <li key={pour.seq} className="flex items-baseline gap-3">
+                    <span className="text-muted-foreground shrink-0">
+                      第 {pour.seq} 段
+                    </span>
+                    <span className="font-medium tabular-nums">
+                      {pour.end_time_sec != null
+                        ? formatSecondsToMSS(pour.end_time_sec)
+                        : '—'}
+                    </span>
+                    <span className="tabular-nums">
+                      {pour.cumulative_water_g != null
+                        ? `${pour.cumulative_water_g} g`
+                        : '—'}
+                    </span>
+                    {pour.note && (
+                      <span className="text-muted-foreground">{pour.note}</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
+            {brew.pour_notes && (
+              <p className="whitespace-pre-wrap">{brew.pour_notes}</p>
+            )}
           </CardContent>
         </Card>
       )}

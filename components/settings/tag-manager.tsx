@@ -26,11 +26,16 @@ import { Input } from '@/components/ui/input'
 import { createUserTag, deleteUserTag } from '@/app/(app)/settings/actions'
 
 type MyTag = { id: string; name: string; usage_count: number }
-type Suggestion = { id: string; name: string; status: string }
+type Suggestion = {
+  id: string
+  name: string
+  status: string
+  group_name: string | null
+}
 
 const STATUS_LABELS: Record<string, string> = {
   pending: '審核中',
-  approved: '已加入內建',
+  approved: '已加入群組標籤',
   rejected: '未採用',
 }
 
@@ -154,10 +159,12 @@ export function TagManager({
 
         {suggestions.length > 0 && (
           <div className="space-y-1">
-            <p className="text-sm font-medium">提交給內建標籤庫的建議</p>
+            <p className="text-sm font-medium">我提交的群組標籤建議</p>
             {suggestions.map((s) => (
               <p key={s.id} className="text-muted-foreground text-sm">
-                {s.name} — {STATUS_LABELS[s.status] ?? s.status}
+                {s.name}
+                {s.group_name && ` →「${s.group_name}」`} —{' '}
+                {STATUS_LABELS[s.status] ?? s.status}
               </p>
             ))}
           </div>

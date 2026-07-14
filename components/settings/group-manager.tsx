@@ -25,14 +25,69 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  approveTagSuggestion,
   createGroup,
   deleteGroup,
   joinGroupByCode,
   leaveGroup,
   regenerateInviteCode,
-  removeGroupMember,
+  rejectTagSuggestion,
 } from '@/app/(app)/settings/actions'
+import { removeGroupMember } from '@/app/(app)/settings/actions'
 import type { MyGroup } from '@/lib/queries/groups'
+import type { PendingSuggestion } from '@/lib/queries/tags'
+
+/** FR-5.6：群組建立者的標籤審核列 */
+function SuggestionReview({ suggestion }: { suggestion: PendingSuggestion }) {
+  const [busy, setBusy] = useState(false)
+
+  async function act(action: 'approve' | 'reject') {
+    setBusy(true)
+    const result =
+      action === 'approve'
+        ? await approveTagSuggestion(suggestion.id)
+        : await rejectTagSuggestion(suggestion.id)
+    setBusy(false)
+    if (!result.ok) toast.error(result.error)
+    else
+      toast.success(
+        action === 'approve'
+          ? `「${suggestion.name}」已加入群組標籤`
+          : `已退回「${suggestion.name}」`,
+      )
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <span>
+        <Badge variant="secondary">{suggestion.name}</Badge>
+        <span className="text-muted-foreground ml-2 text-xs">
+          由 {suggestion.submitter} 提交
+        </span>
+      </span>
+      <span className="flex gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={() => act('approve')}
+        >
+          <Check className="size-3.5" />
+          核可
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onClick={() => act('reject')}
+        >
+          <X className="size-3.5" />
+          退回
+        </Button>
+      </span>
+    </div>
+  )
+}
 
 function InviteCode({ group }: { group: MyGroup }) {
   const [copied, setCopied] = useState(false)
@@ -84,7 +139,15 @@ function InviteCode({ group }: { group: MyGroup }) {
   )
 }
 
-function GroupCard({ group, myUserId }: { group: MyGroup; myUserId: string }) {
+function GroupCard({
+  group,
+  myUserId,
+  pending,
+}: {
+  group: MyGroup
+  myUserId: string
+  pending: PendingSuggestion[]
+}) {
   async function onLeave() {
     const result = await leaveGroup(group.id)
     if (!result.ok) toast.error(result.error)
@@ -144,6 +207,16 @@ function GroupCard({ group, myUserId }: { group: MyGroup; myUserId: string }) {
         )}
       </div>
       <InviteCode group={group} />
+      {group.isOwner && pending.length > 0 && (
+        <div className="space-y-1.5 rounded-md border border-dashed p-2">
+          <p className="text-muted-foreground text-xs font-medium">
+            待審核的標籤提交
+          </p>
+          {pending.map((s) => (
+            <SuggestionReview key={s.id} suggestion={s} />
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap gap-1">
         {group.members.map((member) => (
           <Badge key={member.user_id} variant="secondary" className="gap-1">
@@ -169,9 +242,11 @@ function GroupCard({ group, myUserId }: { group: MyGroup; myUserId: string }) {
 export function GroupManager({
   groups,
   myUserId,
+  pendingSuggestions = [],
 }: {
   groups: MyGroup[]
   myUserId: string
+  pendingSuggestions?: PendingSuggestion[]
 }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
@@ -213,7 +288,12 @@ export function GroupManager({
       </CardHeader>
       <CardContent className="space-y-4">
         {groups.map((group) => (
-          <GroupCard key={group.id} group={group} myUserId={myUserId} />
+          <GroupCard
+            key={group.id}
+            group={group}
+            myUserId={myUserId}
+            pending={pendingSuggestions.filter((s) => s.group_id === group.id)}
+          />
         ))}
 
         <div className="grid gap-3 sm:grid-cols-2">

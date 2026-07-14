@@ -3,9 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useForm, useWatch, type Resolver } from 'react-hook-form'
+import {
+  useFieldArray,
+  useForm,
+  useWatch,
+  type Resolver,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -43,6 +48,11 @@ import { ComboboxInput } from '@/components/forms/combobox-input'
 import { createBrew, updateBrew } from '@/app/(app)/brews/actions'
 import type { BrewFormValues } from '@/lib/brew-form'
 import { showInvalidToast } from '@/lib/form-errors'
+import {
+  DRIPPER_PRESETS,
+  FILTER_PRESETS,
+  KETTLE_PRESETS,
+} from '@/lib/presets'
 import { calcRatioValue, calcRestDays, formatRatio } from '@/lib/format'
 import { BREW_TYPE_OPTIONS } from '@/lib/validations/enums'
 import { brewSchema, type BrewInput } from '@/lib/validations/brew'
@@ -90,11 +100,18 @@ function toLocalInputValue(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+/** 使用者清單優先、預設建議墊底（去重） */
+function withPresets(own: string[], presets: readonly string[]): string[] {
+  const seen = new Set(own)
+  return [...own, ...presets.filter((p) => !seen.has(p))]
+}
+
 export function BrewForm({
   beans,
   grinders,
   tagOptions,
   equipmentOptions,
+  groups = [],
   brewId,
   defaultValues,
   brewedAtISO,
@@ -103,6 +120,8 @@ export function BrewForm({
   grinders: GrinderOption[]
   tagOptions: TagOption[]
   equipmentOptions: EquipmentOptions
+  /** FR-5.6：標籤可提交到這些群組審核 */
+  groups?: { id: string; name: string }[]
   brewId?: string
   defaultValues?: Partial<BrewFormValues>
   /** 編輯模式：原沖煮時間（ISO），於 client 端轉為瀏覽器時區顯示 */
@@ -125,6 +144,7 @@ export function BrewForm({
       kettle: '',
       ratio_include_ice: false,
       pour_notes: '',
+      pours: [],
       tag_ids: [],
       flavor_notes: '',
       next_adjustment: '',
@@ -165,6 +185,9 @@ export function BrewForm({
     const seen = new Set(beans.map((b) => b.id))
     return [...beans, ...localBeans.filter((b) => !seen.has(b.id))]
   }, [beans, localBeans])
+
+  // FR-11 注水分段動態列
+  const pourArray = useFieldArray({ control: form.control, name: 'pours' })
 
   const iced = brewType === 'iced_pour_over'
   const selectedBean = allBeans.find((b) => b.id === beanId)
@@ -329,9 +352,11 @@ export function BrewForm({
                     <ComboboxInput
                       value={field.value}
                       onChange={field.onChange}
-                      options={equipmentOptions.dripper}
+                      options={withPresets(
+                        equipmentOptions.dripper,
+                        DRIPPER_PRESETS,
+                      )}
                       placeholder="選擇或輸入濾杯"
-                      emptyHint="可在「設定 › 我的器材」建立常用清單"
                     />
                   </FormControl>
                   <FormMessage />
@@ -348,9 +373,11 @@ export function BrewForm({
                     <ComboboxInput
                       value={field.value}
                       onChange={field.onChange}
-                      options={equipmentOptions.filter}
+                      options={withPresets(
+                        equipmentOptions.filter,
+                        FILTER_PRESETS,
+                      )}
                       placeholder="選擇或輸入濾紙"
-                      emptyHint="可在「設定 › 我的器材」建立常用清單"
                     />
                   </FormControl>
                   <FormMessage />
@@ -423,9 +450,11 @@ export function BrewForm({
                     <ComboboxInput
                       value={field.value}
                       onChange={field.onChange}
-                      options={equipmentOptions.kettle}
+                      options={withPresets(
+                        equipmentOptions.kettle,
+                        KETTLE_PRESETS,
+                      )}
                       placeholder="選擇或輸入手沖壺"
-                      emptyHint="可在「設定 › 我的器材」建立常用清單"
                     />
                   </FormControl>
                   <FormMessage />
@@ -561,6 +590,106 @@ export function BrewForm({
           </CardContent>
         </Card>
 
+        {/* ── 注水分段（FR-11）──────────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">注水分段</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pourArray.fields.length === 0 && (
+              <p className="text-muted-foreground text-sm">
+                選填：逐段記錄「結束時間＋累積水量＋手法」，重現沖煮節奏最關鍵的資訊。
+              </p>
+            )}
+            {pourArray.fields.map((field, index) => (
+              <div
+                key={field.id}
+                className="grid grid-cols-[auto_1fr] items-start gap-2 rounded-md border p-2 sm:grid-cols-[auto_2fr_1fr_2fr_auto]"
+              >
+                <span className="text-muted-foreground pt-2 text-sm">
+                  第 {index + 1} 段
+                </span>
+                <FormField
+                  control={form.control}
+                  name={`pours.${index}.end_time_sec`}
+                  render={({ field: f }) => (
+                    <FormItem>
+                      <FormControl>
+                        <TimeInput value={f.value} onChange={f.onChange} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`pours.${index}.cumulative_water_g`}
+                  render={({ field: f }) => (
+                    <FormItem className="col-start-2 sm:col-start-auto">
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step={1}
+                          inputMode="decimal"
+                          placeholder="累積水量 g"
+                          value={f.value ?? ''}
+                          onChange={(e) =>
+                            f.onChange(
+                              e.target.value === ''
+                                ? undefined
+                                : e.target.valueAsNumber,
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`pours.${index}.note`}
+                  render={({ field: f }) => (
+                    <FormItem className="col-start-2 sm:col-start-auto">
+                      <FormControl>
+                        <Input placeholder="手法（中心繞圈…）" {...f} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`刪除第 ${index + 1} 段`}
+                  className="col-start-2 justify-self-end sm:col-start-auto"
+                  onClick={() => pourArray.remove(index)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            ))}
+            {pourArray.fields.length < 12 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  pourArray.append({
+                    end_time_sec: undefined,
+                    cumulative_water_g: undefined,
+                    note: '',
+                  })
+                }
+              >
+                <Plus className="size-4" />
+                新增一段
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
         {/* ── 感官評分 ─────────────────────────── */}
         <Card>
           <CardHeader>
@@ -598,6 +727,7 @@ export function BrewForm({
                       options={tagOptions}
                       value={field.value}
                       onChange={field.onChange}
+                      groups={groups}
                     />
                   </FormControl>
                   <FormMessage />

@@ -288,6 +288,102 @@ insert into public.brews (id, user_id, bean_id, dose_g, water_g, overall)
 values ('30000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-00000000000c',
         '10000000-0000-0000-0000-000000000002', 16, 240, 3);
 
+-- FR-11 注水分段：C 可讀 A 的分段、不可替 A 的沖煮寫分段
+reset role;
+insert into public.brew_pours (brew_id, seq, end_time_sec, cumulative_water_g, note)
+values ('30000000-0000-0000-0000-000000000002', 1, 30, 60, '悶蒸');
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.brew_pours
+  where brew_id = '30000000-0000-0000-0000-000000000002';
+  if n <> 1 then raise exception 'FAIL: C 應能讀 A 群組沖煮的分段'; end if;
+
+  begin
+    insert into public.brew_pours (brew_id, seq, end_time_sec)
+    values ('30000000-0000-0000-0000-000000000002', 2, 60);
+    raise exception 'FAIL: C 不應能替 A 的沖煮寫分段';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end $$;
+
+-- FR-5.6 群組標籤：C（非建立者）不能直建群組標籤、可提交建議
+do $$
+begin
+  begin
+    insert into public.flavor_tags (name, category, scope, owner_user_id, group_id)
+    values ('偷渡群組標籤', '自訂', 'group',
+            '00000000-0000-0000-0000-00000000000c',
+            '60000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: 非建立者不應能直建群組標籤';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end $$;
+
+insert into public.tag_suggestions (id, user_id, name, group_id)
+values ('70000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-00000000000c', '烏龍茶感',
+        '60000000-0000-0000-0000-000000000001');
+
+reset role;
+
+-- A（建立者）看得到 C 的提交、核可後建立群組標籤，C 看得到該標籤
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.tag_suggestions
+  where id = '70000000-0000-0000-0000-000000000001';
+  if n <> 1 then raise exception 'FAIL: 建立者應看到成員的標籤提交'; end if;
+end $$;
+
+update public.tag_suggestions set status = 'approved'
+where id = '70000000-0000-0000-0000-000000000001';
+
+insert into public.flavor_tags (name, category, scope, owner_user_id, group_id)
+values ('烏龍茶感', '群組', 'group', '00000000-0000-0000-0000-00000000000a',
+        '60000000-0000-0000-0000-000000000001');
+
+-- FR-10.9 共用器材：A 建群組磨豆機
+insert into public.grinders (id, user_id, group_id, name)
+values ('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-00000000000a',
+        '60000000-0000-0000-0000-000000000001', '群組共用 C40');
+
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.flavor_tags where name = '烏龍茶感';
+  if n <> 1 then raise exception 'FAIL: C 應看到核可後的群組標籤'; end if;
+
+  select count(*) into n from public.grinders
+  where id = '20000000-0000-0000-0000-000000000002';
+  if n <> 1 then raise exception 'FAIL: C 應看到群組共用磨豆機'; end if;
+
+  -- C 改不動 A 建的群組磨豆機
+  update public.grinders set name = '駭客改名'
+  where id = '20000000-0000-0000-0000-000000000002';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: C 不應能改群組磨豆機'; end if;
+end $$;
+
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
 -- FR-10.5：C 改不動 A 的沖煮（靜默 0 筆）
 do $$
 declare n int;

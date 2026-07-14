@@ -6,8 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { AnalyticsFilters } from '@/components/analytics/analytics-filters'
 import { RadarPicker } from '@/components/analytics/radar-picker'
+import { BrewFilters } from '@/components/brews/brew-filters'
 import { RestDaysChart } from '@/components/charts/rest-days-chart'
 import { TagStatsChart } from '@/components/charts/tag-stats-chart'
 import { VariableScatter } from '@/components/charts/variable-scatter'
@@ -15,9 +15,10 @@ import { getCurrentProfile } from '@/lib/auth/profile'
 import { toBrewFilters, type BrewSearchParams } from '@/lib/brew-filters'
 import { fetchTagStats } from '@/lib/queries/analytics'
 import { listBeans } from '@/lib/queries/beans'
-import { listBrews } from '@/lib/queries/brews'
+import { listBrews, listDistinctDrippers } from '@/lib/queries/brews'
 import { listGrinders } from '@/lib/queries/grinders'
 import { listMyGroups } from '@/lib/queries/groups'
+import { listFlavorTags } from '@/lib/queries/tags'
 
 export const metadata: Metadata = { title: '分析' }
 
@@ -30,13 +31,16 @@ export default async function AnalyticsPage({
   const sp = await searchParams
   const filters = toBrewFilters(sp)
 
-  const [visibleBrews, beans, grinders, profile, groups] = await Promise.all([
-    listBrews(filters),
-    listBeans(),
-    listGrinders(),
-    getCurrentProfile(),
-    listMyGroups(),
-  ])
+  const [visibleBrews, beans, grinders, profile, groups, drippers, allTags] =
+    await Promise.all([
+      listBrews(filters),
+      listBeans(),
+      listGrinders(),
+      getCurrentProfile(),
+      listMyGroups(),
+      listDistinctDrippers(),
+      listFlavorTags(),
+    ])
 
   // FR-10.7：預設只看我的；scope=all 才納入群組成員的紀錄
   const brews =
@@ -96,10 +100,18 @@ export default async function AnalyticsPage({
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">分析</h1>
-      <AnalyticsFilters
-        beans={beans.map((b) => ({ id: b.id, label: b.name_batch }))}
-        origins={[...new Set(beans.map((b) => b.origin).filter(Boolean))]}
-        hasGroups={groups.length > 0}
+      <BrewFilters
+        scopeToggle={groups.length > 0}
+        options={{
+          beans: beans.map((b) => ({ id: b.id, label: b.name_batch })),
+          origins: [...new Set(beans.map((b) => b.origin).filter(Boolean))],
+          processes: [
+            ...new Set(beans.map((b) => b.process).filter(Boolean)),
+          ] as string[],
+          roasters: [...new Set(beans.map((b) => b.roaster).filter(Boolean))],
+          drippers,
+          tags: allTags.map((t) => ({ id: t.id, name: t.name })),
+        }}
       />
       <p className="text-muted-foreground text-sm">
         共 {brews.length} 筆沖煮納入分析

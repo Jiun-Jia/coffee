@@ -7,6 +7,12 @@ type BrewDetailRow = Database['public']['Views']['brew_details']['Row']
  * P5 表單的值型別。各欄位由受控元件保證型別；
  * 提交前經 brewSchema 於 client + server 各驗一次。
  */
+export type PourFormValue = {
+  end_time_sec?: number
+  cumulative_water_g?: number
+  note: string
+}
+
 export type BrewFormValues = {
   bean_id: string
   brew_type: BrewType
@@ -33,6 +39,7 @@ export type BrewFormValues = {
   balance?: number
   aftertaste?: number
   overall?: number
+  pours: PourFormValue[]
   tag_ids: string[]
   flavor_notes: string
   next_adjustment: string
@@ -47,8 +54,18 @@ export type BrewFormValues = {
 export function brewRowToFormDefaults(
   brew: BrewDetailRow,
   tagIds: string[],
+  pours: {
+    end_time_sec: number | null
+    cumulative_water_g: number | null
+    note: string | null
+  }[] = [],
 ): Partial<BrewFormValues> {
   return {
+    pours: pours.map((p) => ({
+      end_time_sec: p.end_time_sec ?? undefined,
+      cumulative_water_g: p.cumulative_water_g ?? undefined,
+      note: p.note ?? '',
+    })),
     bean_id: brew.bean_id ?? '',
     brew_type: brew.brew_type ?? 'pour_over',
     dripper: brew.dripper ?? '',

@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Database } from '@/types/database'
 
-export type EquipmentRow = Database['public']['Tables']['equipment']['Row']
+export type EquipmentRow = Database['public']['Tables']['equipment']['Row'] & {
+  group_name: string | null
+}
 export type EquipmentKind = Database['public']['Enums']['equipment_kind']
 
 export const EQUIPMENT_KIND_LABELS: Record<EquipmentKind, string> = {
@@ -10,14 +12,14 @@ export const EQUIPMENT_KIND_LABELS: Record<EquipmentKind, string> = {
   kettle: '手沖壺',
 }
 
-/** 我的器材清單（RLS 限本人），依類別分組供設定頁與沖煮表單下拉。 */
+/** 器材清單（本人的＋所屬群組的，FR-10.9），依類別分組。 */
 export async function listEquipment(): Promise<
   Record<EquipmentKind, EquipmentRow[]>
 > {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('equipment')
-    .select('*')
+    .select('*, groups(name)')
     .order('created_at')
 
   if (error) throw new Error(`讀取器材失敗：${error.message}`)
@@ -27,6 +29,8 @@ export async function listEquipment(): Promise<
     filter: [],
     kettle: [],
   }
-  for (const item of data) grouped[item.kind].push(item)
+  for (const { groups, ...item } of data) {
+    grouped[item.kind].push({ ...item, group_name: groups?.name ?? null })
+  }
   return grouped
 }

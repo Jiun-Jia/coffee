@@ -9,21 +9,42 @@ import { getCurrentProfile } from '@/lib/auth/profile'
 import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
 import { listMyGroups } from '@/lib/queries/groups'
-import { listMySuggestions, listMyTags } from '@/lib/queries/tags'
+import {
+  listMySuggestions,
+  listMyTags,
+  listPendingSuggestions,
+} from '@/lib/queries/tags'
 
 export const metadata: Metadata = { title: '設定' }
 
-// P10：帳號（AUTH-11）✔ / 磨豆機（BEAN-8）✔ / 我的標籤（BREW-17）✔ / 匯出（VIZ-12）
+// P10：帳號 / 群組（FR-10）/ 磨豆機 / 我的器材 / 我的標籤 / 匯出
 export default async function SettingsPage() {
-  const [profile, grinders, equipment, myTags, suggestions, groups] =
-    await Promise.all([
-      getCurrentProfile(),
-      listGrinders(),
-      listEquipment(),
-      listMyTags(),
-      listMySuggestions(),
-      listMyGroups(),
-    ])
+  const [
+    profile,
+    grinders,
+    equipment,
+    myTags,
+    suggestions,
+    groups,
+    pendingSuggestions,
+  ] = await Promise.all([
+    getCurrentProfile(),
+    listGrinders(),
+    listEquipment(),
+    listMyTags(),
+    listMySuggestions(),
+    listMyGroups(),
+    listPendingSuggestions(),
+  ])
+
+  const groupOptions = groups.map((g) => ({ id: g.id, name: g.name }))
+  const pickEquipment = (kind: 'dripper' | 'filter' | 'kettle') =>
+    equipment[kind].map((e) => ({
+      id: e.id,
+      name: e.name,
+      user_id: e.user_id,
+      group_name: e.group_name,
+    }))
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -32,14 +53,24 @@ export default async function SettingsPage() {
         username={profile?.username ?? ''}
         email={profile?.email ?? null}
       />
-      <GroupManager groups={groups} myUserId={profile?.id ?? ''} />
-      <GrinderManager grinders={grinders} />
+      <GroupManager
+        groups={groups}
+        myUserId={profile?.id ?? ''}
+        pendingSuggestions={pendingSuggestions}
+      />
+      <GrinderManager
+        grinders={grinders}
+        groups={groupOptions}
+        myUserId={profile?.id ?? ''}
+      />
       <EquipmentManager
         equipment={{
-          dripper: equipment.dripper.map((e) => ({ id: e.id, name: e.name })),
-          filter: equipment.filter.map((e) => ({ id: e.id, name: e.name })),
-          kettle: equipment.kettle.map((e) => ({ id: e.id, name: e.name })),
+          dripper: pickEquipment('dripper'),
+          filter: pickEquipment('filter'),
+          kettle: pickEquipment('kettle'),
         }}
+        groups={groupOptions}
+        myUserId={profile?.id ?? ''}
       />
       <TagManager
         tags={myTags.map((t) => ({
@@ -51,6 +82,7 @@ export default async function SettingsPage() {
           id: s.id,
           name: s.name,
           status: s.status,
+          group_name: s.group_name,
         }))}
       />
       <ExportSection />

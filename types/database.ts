@@ -143,6 +143,48 @@ export type Database = {
           },
         ]
       }
+      brew_pours: {
+        Row: {
+          brew_id: string
+          cumulative_water_g: number | null
+          end_time_sec: number | null
+          id: string
+          note: string | null
+          seq: number
+        }
+        Insert: {
+          brew_id: string
+          cumulative_water_g?: number | null
+          end_time_sec?: number | null
+          id?: string
+          note?: string | null
+          seq: number
+        }
+        Update: {
+          brew_id?: string
+          cumulative_water_g?: number | null
+          end_time_sec?: number | null
+          id?: string
+          note?: string | null
+          seq?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brew_pours_brew_id_fkey"
+            columns: ["brew_id"]
+            isOneToOne: false
+            referencedRelation: "brew_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brew_pours_brew_id_fkey"
+            columns: ["brew_id"]
+            isOneToOne: false
+            referencedRelation: "brews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brews: {
         Row: {
           acidity: number | null
@@ -273,6 +315,7 @@ export type Database = {
       equipment: {
         Row: {
           created_at: string
+          group_id: string | null
           id: string
           kind: Database["public"]["Enums"]["equipment_kind"]
           name: string
@@ -280,6 +323,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          group_id?: string | null
           id?: string
           kind: Database["public"]["Enums"]["equipment_kind"]
           name: string
@@ -287,12 +331,20 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          group_id?: string | null
           id?: string
           kind?: Database["public"]["Enums"]["equipment_kind"]
           name?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "equipment_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "equipment_user_id_fkey"
             columns: ["user_id"]
@@ -306,6 +358,7 @@ export type Database = {
         Row: {
           category: string
           created_at: string
+          group_id: string | null
           id: string
           name: string
           owner_user_id: string | null
@@ -314,6 +367,7 @@ export type Database = {
         Insert: {
           category: string
           created_at?: string
+          group_id?: string | null
           id?: string
           name: string
           owner_user_id?: string | null
@@ -322,12 +376,20 @@ export type Database = {
         Update: {
           category?: string
           created_at?: string
+          group_id?: string | null
           id?: string
           name?: string
           owner_user_id?: string | null
           scope?: Database["public"]["Enums"]["tag_scope"]
         }
         Relationships: [
+          {
+            foreignKeyName: "flavor_tags_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "flavor_tags_owner_user_id_fkey"
             columns: ["owner_user_id"]
@@ -341,6 +403,7 @@ export type Database = {
         Row: {
           burr_type: string | null
           created_at: string
+          group_id: string | null
           id: string
           name: string
           notes: string | null
@@ -350,6 +413,7 @@ export type Database = {
         Insert: {
           burr_type?: string | null
           created_at?: string
+          group_id?: string | null
           id?: string
           name: string
           notes?: string | null
@@ -359,6 +423,7 @@ export type Database = {
         Update: {
           burr_type?: string | null
           created_at?: string
+          group_id?: string | null
           id?: string
           name?: string
           notes?: string | null
@@ -366,6 +431,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "grinders_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "grinders_user_id_fkey"
             columns: ["user_id"]
@@ -465,6 +537,7 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string
+          group_id: string | null
           id: string
           name: string
           status: Database["public"]["Enums"]["suggestion_status"]
@@ -473,6 +546,7 @@ export type Database = {
         Insert: {
           category?: string | null
           created_at?: string
+          group_id?: string | null
           id?: string
           name: string
           status?: Database["public"]["Enums"]["suggestion_status"]
@@ -481,12 +555,20 @@ export type Database = {
         Update: {
           category?: string | null
           created_at?: string
+          group_id?: string | null
           id?: string
           name?: string
           status?: Database["public"]["Enums"]["suggestion_status"]
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tag_suggestions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tag_suggestions_user_id_fkey"
             columns: ["user_id"]
@@ -579,13 +661,14 @@ export type Database = {
     Functions: {
       is_group_member: { Args: { gid: string }; Returns: boolean }
       shares_group_with: { Args: { other: string }; Returns: boolean }
+      tag_on_visible_brew: { Args: { tid: string }; Returns: boolean }
     }
     Enums: {
       brew_type: "pour_over" | "iced_pour_over"
       equipment_kind: "dripper" | "filter" | "kettle"
       roast_level: "light" | "medium_light" | "medium" | "medium_dark" | "dark"
       suggestion_status: "pending" | "approved" | "rejected"
-      tag_scope: "system" | "user"
+      tag_scope: "system" | "user" | "group"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -720,7 +803,7 @@ export const Constants = {
       equipment_kind: ["dripper", "filter", "kettle"],
       roast_level: ["light", "medium_light", "medium", "medium_dark", "dark"],
       suggestion_status: ["pending", "approved", "rejected"],
-      tag_scope: ["system", "user"],
+      tag_scope: ["system", "user", "group"],
     },
   },
 } as const

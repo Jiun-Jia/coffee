@@ -6,9 +6,15 @@ import { BrewForm } from '@/components/brews/brew-form'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { brewRowToFormDefaults } from '@/lib/brew-form'
 import { listBeans } from '@/lib/queries/beans'
-import { getBrew, getBrewTags, listBrews } from '@/lib/queries/brews'
+import {
+  getBrew,
+  getBrewPours,
+  getBrewTags,
+  listBrews,
+} from '@/lib/queries/brews'
 import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
+import { listMyGroups } from '@/lib/queries/groups'
 import { listFlavorTags } from '@/lib/queries/tags'
 
 export const metadata: Metadata = { title: '新增沖煮' }
@@ -18,13 +24,14 @@ export default async function NewBrewPage({
 }: {
   searchParams: Promise<{ beanId?: string; copyFrom?: string }>
 }) {
-  const [{ beanId, copyFrom }, beans, grinders, tags, equipment] =
+  const [{ beanId, copyFrom }, beans, grinders, tags, equipment, groups] =
     await Promise.all([
       searchParams,
       listBeans(),
       listGrinders(),
       listFlavorTags(),
       listEquipment(),
+      listMyGroups(),
     ])
 
   // BREW-15：複製既有紀錄（帶入除日期時間外的全部欄位，日期改為當下）
@@ -32,9 +39,14 @@ export default async function NewBrewPage({
   if (copyFrom) {
     const source = await getBrew(copyFrom)
     if (source?.id) {
+      const [sourceTags, sourcePours] = await Promise.all([
+        getBrewTags(source.id),
+        getBrewPours(source.id),
+      ])
       copyDefaults = brewRowToFormDefaults(
         source,
-        (await getBrewTags(source.id)).map((t) => t.id),
+        sourceTags.map((t) => t.id),
+        sourcePours,
       )
     }
   }
@@ -94,6 +106,7 @@ export default async function NewBrewPage({
           filter: equipment.filter.map((e) => e.name),
           kettle: equipment.kettle.map((e) => e.name),
         }}
+        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
         defaultValues={{
           ...copyDefaults,
           ...(preselect ? { bean_id: preselect } : {}),

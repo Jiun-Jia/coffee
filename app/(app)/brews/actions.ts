@@ -24,7 +24,7 @@ export async function createBrew(input: BrewInput): Promise<BrewActionResult> {
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: '請先登入' }
 
-  const { tag_ids, ...fields } = parsed.data
+  const { tag_ids, pours, ...fields } = parsed.data
   const { data, error } = await supabase
     .from('brews')
     .insert({ ...fields, user_id: user.id })
@@ -40,6 +40,25 @@ export async function createBrew(input: BrewInput): Promise<BrewActionResult> {
     if (tagError) {
       await supabase.from('brews').delete().eq('id', data.id) // 補償
       return { ok: false, error: `標籤儲存失敗：${tagError.message}` }
+    }
+  }
+
+  const cleanPours = pours.filter(
+    (p) => p.end_time_sec != null || p.cumulative_water_g != null || p.note,
+  )
+  if (cleanPours.length > 0) {
+    const { error: pourError } = await supabase.from('brew_pours').insert(
+      cleanPours.map((p, i) => ({
+        brew_id: data.id,
+        seq: i + 1,
+        end_time_sec: p.end_time_sec ?? null,
+        cumulative_water_g: p.cumulative_water_g ?? null,
+        note: p.note ?? null,
+      })),
+    )
+    if (pourError) {
+      await supabase.from('brews').delete().eq('id', data.id) // 補償
+      return { ok: false, error: `分段儲存失敗：${pourError.message}` }
     }
   }
 
@@ -63,7 +82,7 @@ export async function updateBrew(
   }
 
   const supabase = await createClient()
-  const { tag_ids, ...fields } = parsed.data
+  const { tag_ids, pours, ...fields } = parsed.data
   const { data, error } = await supabase
     .from('brews')
     .update(fields)
@@ -85,6 +104,31 @@ export async function updateBrew(
       .insert(tag_ids.map((tag_id) => ({ brew_id: id, tag_id })))
     if (tagError)
       return { ok: false, error: `標籤更新失敗：${tagError.message}` }
+  }
+
+  // 分段同步（全刪重建，同標籤策略）
+  const { error: pourDelError } = await supabase
+    .from('brew_pours')
+    .delete()
+    .eq('brew_id', id)
+  if (pourDelError)
+    return { ok: false, error: `分段更新失敗：${pourDelError.message}` }
+
+  const cleanPours = pours.filter(
+    (p) => p.end_time_sec != null || p.cumulative_water_g != null || p.note,
+  )
+  if (cleanPours.length > 0) {
+    const { error: pourError } = await supabase.from('brew_pours').insert(
+      cleanPours.map((p, i) => ({
+        brew_id: id,
+        seq: i + 1,
+        end_time_sec: p.end_time_sec ?? null,
+        cumulative_water_g: p.cumulative_water_g ?? null,
+        note: p.note ?? null,
+      })),
+    )
+    if (pourError)
+      return { ok: false, error: `分段更新失敗：${pourError.message}` }
   }
 
   revalidatePath('/brews')

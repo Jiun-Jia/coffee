@@ -54,11 +54,18 @@ function FilterSelect({
 }
 
 /**
- * BREW-13：P3 篩選/搜尋列（FR-7）。
+ * BREW-13：P3 / P9 共用篩選列（FR-7、PRD §9）。
  * 全部條件序列化至 URL searchParams（可分享、可返回）；
  * 下拉選項由使用者既有資料 distinct 產生。
+ * scopeToggle：P9 專用的「只看我的/含群組成員」切換（FR-10.7）。
  */
-export function BrewFilters({ options }: { options: FilterOptions }) {
+export function BrewFilters({
+  options,
+  scopeToggle = false,
+}: {
+  options: FilterOptions
+  scopeToggle?: boolean
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -103,6 +110,20 @@ export function BrewFilters({ options }: { options: FilterOptions }) {
         />
       </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+        {scopeToggle && (
+          <Select
+            value={searchParams.get('scope') || 'mine'}
+            onValueChange={(v) => setParams({ scope: v === 'mine' ? '' : v })}
+          >
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mine">只看我的</SelectItem>
+              <SelectItem value="all">含群組成員</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <FilterSelect
           placeholder="豆子"
           value={get('bean')}

@@ -48,34 +48,54 @@ export async function listBrews(
     if (tagBrewIds.length === 0) return []
   }
 
-  let query = supabase.from('brew_details').select('*')
+  // 每頁重建查詢（builder 不宜重複執行）
+  const buildQuery = () => {
+    let query = supabase.from('brew_details').select('*')
 
-  if (tagBrewIds) query = query.in('id', tagBrewIds)
-  if (filters.beanId) query = query.eq('bean_id', filters.beanId)
-  if (filters.roastLevel) query = query.eq('roast_level', filters.roastLevel)
-  if (filters.origin) query = query.eq('origin', filters.origin)
-  if (filters.process) query = query.eq('process', filters.process)
-  if (filters.roaster) query = query.eq('roaster', filters.roaster)
-  if (filters.dripper) query = query.eq('dripper', filters.dripper)
-  if (filters.minOverall) query = query.gte('overall', filters.minOverall)
-  // 日期區間以台北時區為口徑（與 rest_days 一致）
-  if (filters.from) query = query.gte('brewed_at', `${filters.from}T00:00:00+08:00`)
-  if (filters.to) query = query.lte('brewed_at', `${filters.to}T23:59:59+08:00`)
-  if (filters.q) {
-    const p = likePattern(filters.q)
-    query = query.or(`name_batch.ilike.${p},roaster.ilike.${p},notes.ilike.${p}`)
+    if (tagBrewIds) query = query.in('id', tagBrewIds)
+    if (filters.beanId) query = query.eq('bean_id', filters.beanId)
+    if (filters.roastLevel) query = query.eq('roast_level', filters.roastLevel)
+    if (filters.origin) query = query.eq('origin', filters.origin)
+    if (filters.process) query = query.eq('process', filters.process)
+    if (filters.roaster) query = query.eq('roaster', filters.roaster)
+    if (filters.dripper) query = query.eq('dripper', filters.dripper)
+    if (filters.minOverall) query = query.gte('overall', filters.minOverall)
+    // 日期區間以台北時區為口徑（與 rest_days 一致）
+    if (filters.from)
+      query = query.gte('brewed_at', `${filters.from}T00:00:00+08:00`)
+    if (filters.to)
+      query = query.lte('brewed_at', `${filters.to}T23:59:59+08:00`)
+    if (filters.q) {
+      const p = likePattern(filters.q)
+      query = query.or(
+        `name_batch.ilike.${p},roaster.ilike.${p},notes.ilike.${p}`,
+      )
+    }
+
+    const sort = filters.sort ?? 'brewed_at'
+    const ascending = filters.dir === 'asc'
+    query = query.order(sort, { ascending })
+    if (sort !== 'brewed_at') {
+      query = query.order('brewed_at', { ascending: false }) // 次序穩定
+    }
+    return query
   }
 
-  const sort = filters.sort ?? 'brewed_at'
-  const ascending = filters.dir === 'asc'
-  query = query.order(sort, { ascending })
-  if (sort !== 'brewed_at') {
-    query = query.order('brewed_at', { ascending: false }) // 次序穩定
+  // 分批抓全量（原本 limit 500 會讓分析頁默默漏算舊資料）。
+  // D15：列表不分頁；安全上限 5000 筆防呆，超過時最舊的會被截斷。
+  const rows: BrewDetailRow[] = []
+  const PAGE = 500
+  const MAX = 5000
+  for (let fromIdx = 0; fromIdx < MAX; fromIdx += PAGE) {
+    const { data, error } = await buildQuery().range(
+      fromIdx,
+      fromIdx + PAGE - 1,
+    )
+    if (error) throw new Error(`讀取沖煮紀錄失敗：${error.message}`)
+    rows.push(...data)
+    if (data.length < PAGE) break
   }
-
-  const { data, error } = await query.limit(500) // D15：MVP 不分頁
-  if (error) throw new Error(`讀取沖煮紀錄失敗：${error.message}`)
-  return data
+  return rows
 }
 
 /** 濾杯下拉選項：使用者用過的濾杯（distinct） */
@@ -99,6 +119,26 @@ export async function getBrew(id: string): Promise<BrewDetailRow | null> {
     .maybeSingle()
 
   if (error) throw new Error(`讀取沖煮紀錄失敗：${error.message}`)
+  return data
+}
+
+export type BrewPour = {
+  seq: number
+  end_time_sec: number | null
+  cumulative_water_g: number | null
+  note: string | null
+}
+
+/** 該筆沖煮的注水分段（FR-11），依段序排列。 */
+export async function getBrewPours(brewId: string): Promise<BrewPour[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('brew_pours')
+    .select('seq, end_time_sec, cumulative_water_g, note')
+    .eq('brew_id', brewId)
+    .order('seq')
+
+  if (error) throw new Error(`讀取注水分段失敗：${error.message}`)
   return data
 }
 

@@ -3,9 +3,10 @@ import { notFound } from 'next/navigation'
 import { BrewForm } from '@/components/brews/brew-form'
 import { brewRowToFormDefaults } from '@/lib/brew-form'
 import { listBeans } from '@/lib/queries/beans'
-import { getBrew, getBrewTags } from '@/lib/queries/brews'
+import { getBrew, getBrewPours, getBrewTags } from '@/lib/queries/brews'
 import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
+import { listMyGroups } from '@/lib/queries/groups'
 import { listFlavorTags } from '@/lib/queries/tags'
 
 export const metadata: Metadata = { title: '編輯沖煮' }
@@ -20,13 +21,16 @@ export default async function EditBrewPage({
   const brew = await getBrew(id) // RLS：非本人拿到 null
   if (!brew?.id) notFound()
 
-  const [beans, grinders, tags, brewTags, equipment] = await Promise.all([
-    listBeans(),
-    listGrinders(),
-    listFlavorTags(),
-    getBrewTags(brew.id),
-    listEquipment(),
-  ])
+  const [beans, grinders, tags, brewTags, brewPours, equipment, groups] =
+    await Promise.all([
+      listBeans(),
+      listGrinders(),
+      listFlavorTags(),
+      getBrewTags(brew.id),
+      getBrewPours(brew.id),
+      listEquipment(),
+      listMyGroups(),
+    ])
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -37,6 +41,7 @@ export default async function EditBrewPage({
         defaultValues={brewRowToFormDefaults(
           brew,
           brewTags.map((t) => t.id),
+          brewPours,
         )}
         beans={beans.map((b) => ({
           id: b.id,
@@ -55,6 +60,7 @@ export default async function EditBrewPage({
           filter: equipment.filter.map((e) => e.name),
           kettle: equipment.kettle.map((e) => e.name),
         }}
+        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
       />
     </div>
   )

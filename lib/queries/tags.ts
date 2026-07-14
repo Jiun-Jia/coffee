@@ -37,14 +37,58 @@ export async function listMyTags(): Promise<MyTagWithCount[]> {
   }))
 }
 
-/** 我提交過的建議（含審核狀態）。 */
-export async function listMySuggestions(): Promise<TagSuggestionRow[]> {
+/** 我提交過的建議（含審核狀態與群組名）。 */
+export async function listMySuggestions(): Promise<
+  (TagSuggestionRow & { group_name: string | null })[]
+> {
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
   const { data, error } = await supabase
     .from('tag_suggestions')
-    .select('*')
+    .select('*, groups(name)')
+    .eq('user_id', user.id) // RLS 也會回「我是建立者」的群組提交，這裡只列自己的
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(`讀取提交紀錄失敗：${error.message}`)
+  return data.map(({ groups, ...row }) => ({
+    ...row,
+    group_name: groups?.name ?? null,
+  }))
+}
+
+export type PendingSuggestion = {
+  id: string
+  name: string
+  group_id: string
+  submitter: string
+}
+
+/** 待我審核的提交（我建立的群組、status=pending，FR-5.6 改版）。 */
+export async function listPendingSuggestions(): Promise<PendingSuggestion[]> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('tag_suggestions')
+    .select('id, name, group_id, user_id, profiles(username), groups!inner(owner_id)')
+    .eq('status', 'pending')
+    .eq('groups.owner_id', user.id)
+    .order('created_at')
+
+  if (error) throw new Error(`讀取待審提交失敗：${error.message}`)
   return data
+    .filter((row) => row.group_id !== null)
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      group_id: row.group_id as string,
+      submitter: row.profiles?.username ?? '（成員）',
+    }))
 }

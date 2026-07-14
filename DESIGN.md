@@ -400,6 +400,29 @@ join beans bn on bn.id = b.bean_id;
 
 ---
 
+## B.5 實作後記（2026-07-14 回寫：與 §A/§B 原設計的增補）
+
+Schema 演進（單一事實來源＝`supabase/migrations/`，此處僅摘要）：
+
+| 增補 | 說明 |
+|---|---|
+| `users` → `profiles` | Supabase 慣例；id 直接對應 auth.users.id、不存 email；username 以 lower() unique index 大小寫不敏感唯一 |
+| `equipment` | 濾杯/濾紙/手沖壺選項清單（enum kind）；沖煮紀錄仍存文字非 FK |
+| `groups` / `group_members` | FR-10：邀請碼、建立者權限；beans/grinders/equipment 各加 nullable `group_id` |
+| `flavor_tags.scope` | 加 `group`：群組標籤（建立者審核 tag_suggestions 後產生，FR-5.6 改版） |
+| `brew_pours` | FR-11 注水分段（seq、end_time_sec、cumulative_water_g、note） |
+| `brew_details` view | 增加 `varietal`、`process`、`group_id`、`brewer_username`（left join profiles）；rest_days 以 Asia/Taipei 取日 |
+| GRANT | 新版 Supabase 映像不再預設授予 DML，明確 GRANT＋default privileges（migration 0009） |
+| security definer helpers | `is_group_member` / `shares_group_with` / `tag_on_visible_brew`（打斷政策遞迴） |
+
+畫面/互動與 §B 原設計的差異：
+- 時間輸入：分/秒下拉（非文字輸入），選填欄位附清除鈕。
+- 處理法/器材/磨豆機名稱：下拉＋可自填（ComboboxInput），內建常用清單（`lib/presets.ts`）。
+- P5 新增「注水分段」動態列區塊；P4 以時間軸顯示。
+- P9 篩選＝P3 全套九條件＋「只看我的/含群組成員」切換（FR-10.7）。
+- P10 新增：群組管理（含標籤審核佇列）、我的器材。
+- 必填漏填：欄位紅框＋toast 彙總提醒＋自動聚焦第一個錯誤欄位。
+
 ## C. 下一步
 
 1. 你確認本 Schema 與畫面規劃（或指出要調整處）。

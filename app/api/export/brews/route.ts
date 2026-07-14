@@ -39,6 +39,7 @@ const HEADERS = [
   '悶蒸水量(g)',
   '悶蒸時間',
   '總時間',
+  '注水分段',
   '注水手法',
   '香氣',
   '酸質',
@@ -54,7 +55,7 @@ const HEADERS = [
   '備註',
 ]
 
-function toRow(b: Row, tags: string[]): string {
+function toRow(b: Row, tags: string[], pours: string): string {
   return [
     b.brewed_at?.slice(0, 16).replace('T', ' '),
     b.brew_type ? BREW_TYPE_LABELS[b.brew_type] : '',
@@ -79,6 +80,7 @@ function toRow(b: Row, tags: string[]): string {
     b.bloom_water_g,
     b.bloom_time_sec != null ? formatSecondsToMSS(b.bloom_time_sec) : '',
     b.total_time_sec != null ? formatSecondsToMSS(b.total_time_sec) : '',
+    pours,
     b.pour_notes,
     b.aroma,
     b.acidity,
@@ -121,20 +123,40 @@ export async function GET() {
     if (data.length < PAGE) break
   }
 
-  // 標籤：分批查關聯再組 map
+  // 標籤與分段：分批查關聯再組 map
   const tagsByBrew = new Map<string, string[]>()
+  const poursByBrew = new Map<string, string[]>()
   const ids = rows.map((r) => r.id).filter(Boolean) as string[]
   const CHUNK = 100
   for (let i = 0; i < ids.length; i += CHUNK) {
-    const { data } = await supabase
-      .from('brew_flavor_tags')
-      .select('brew_id, flavor_tags(name)')
-      .in('brew_id', ids.slice(i, i + CHUNK))
-    for (const row of data ?? []) {
+    const slice = ids.slice(i, i + CHUNK)
+    const [{ data: tagRows }, { data: pourRows }] = await Promise.all([
+      supabase
+        .from('brew_flavor_tags')
+        .select('brew_id, flavor_tags(name)')
+        .in('brew_id', slice),
+      supabase
+        .from('brew_pours')
+        .select('brew_id, seq, end_time_sec, cumulative_water_g, note')
+        .in('brew_id', slice)
+        .order('seq'),
+    ])
+    for (const row of tagRows ?? []) {
       if (!row.flavor_tags) continue
       const list = tagsByBrew.get(row.brew_id) ?? []
       list.push(row.flavor_tags.name)
       tagsByBrew.set(row.brew_id, list)
+    }
+    for (const p of pourRows ?? []) {
+      const list = poursByBrew.get(p.brew_id) ?? []
+      list.push(
+        [
+          p.end_time_sec != null ? formatSecondsToMSS(p.end_time_sec) : '',
+          p.cumulative_water_g != null ? `@${p.cumulative_water_g}g` : '',
+          p.note ? ` ${p.note}` : '',
+        ].join(''),
+      )
+      poursByBrew.set(p.brew_id, list)
     }
   }
 
@@ -142,7 +164,15 @@ export async function GET() {
     '﻿' + // UTF-8 BOM
     HEADERS.join(',') +
     '\n' +
-    rows.map((r) => toRow(r, tagsByBrew.get(r.id ?? '') ?? [])).join('\n')
+    rows
+      .map((r) =>
+        toRow(
+          r,
+          tagsByBrew.get(r.id ?? '') ?? [],
+          (poursByBrew.get(r.id ?? '') ?? []).join('｜'),
+        ),
+      )
+      .join('\n')
 
   const today = new Date(Date.now() + 8 * 3600_000)
     .toISOString()

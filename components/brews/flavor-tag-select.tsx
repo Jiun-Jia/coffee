@@ -33,10 +33,13 @@ export function FlavorTagSelect({
   options,
   value,
   onChange,
+  groups = [],
 }: {
   options: TagOption[]
   value: string[]
   onChange: (ids: string[]) => void
+  /** FR-5.6：可提交新標籤給這些群組的建立者審核 */
+  groups?: { id: string; name: string }[]
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -73,10 +76,10 @@ export function FlavorTagSelect({
     )
   }
 
-  async function handleCreate(alsoSuggest: boolean) {
+  async function handleCreate(suggestToGroupId?: string, groupName?: string) {
     if (!trimmed || creating) return
     setCreating(true)
-    const result = await createUserTag(trimmed, alsoSuggest)
+    const result = await createUserTag(trimmed, suggestToGroupId)
     setCreating(false)
     if (!result.ok) {
       toast.error(result.error)
@@ -86,8 +89,8 @@ export function FlavorTagSelect({
     if (!value.includes(result.tag.id)) onChange([...value, result.tag.id])
     setSearch('')
     toast.success(
-      alsoSuggest
-        ? `已建立「${result.tag.name}」並提交建議`
+      suggestToGroupId
+        ? `已建立「${result.tag.name}」並提交給「${groupName}」審核`
         : `已建立自訂標籤「${result.tag.name}」`,
     )
   }
@@ -163,7 +166,7 @@ export function FlavorTagSelect({
                   <CommandItem
                     value={`__create__${trimmed}`}
                     disabled={creating}
-                    onSelect={() => handleCreate(false)}
+                    onSelect={() => handleCreate()}
                   >
                     {creating ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -172,14 +175,17 @@ export function FlavorTagSelect({
                     )}
                     建立自訂標籤「{trimmed}」
                   </CommandItem>
-                  <CommandItem
-                    value={`__suggest__${trimmed}`}
-                    disabled={creating}
-                    onSelect={() => handleCreate(true)}
-                  >
-                    <Send className="size-4" />
-                    建立並提交建議加入內建
-                  </CommandItem>
+                  {groups.map((g) => (
+                    <CommandItem
+                      key={g.id}
+                      value={`__suggest__${g.id}__${trimmed}`}
+                      disabled={creating}
+                      onSelect={() => handleCreate(g.id, g.name)}
+                    >
+                      <Send className="size-4" />
+                      建立並提交到「{g.name}」審核
+                    </CommandItem>
+                  ))}
                 </CommandGroup>
               )}
             </CommandList>

@@ -52,6 +52,17 @@ export const brewSchema = z.object({
   balance: optionalNumber(score1to5),
   aftertaste: optionalNumber(score1to5),
   overall: score1to5,
+  // 注水分段（FR-11：每段結束時間點＋累積水量＋手法）
+  pours: z
+    .array(
+      z.object({
+        end_time_sec: optionalNumber(nonNegSeconds),
+        cumulative_water_g: optionalNumber(positiveGrams),
+        note: optionalTrimmedString,
+      }),
+    )
+    .max(12, '分段最多 12 段')
+    .default([]),
   // 風味
   tag_ids: z.array(z.uuid()).default([]),
   flavor_notes: optionalTrimmedString,

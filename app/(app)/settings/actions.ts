@@ -27,6 +27,7 @@ export type GrinderActionResult =
  */
 export async function createGrinder(
   input: GrinderInput,
+  groupId?: string, // FR-10.9：歸屬群組（undefined＝個人）
 ): Promise<GrinderActionResult> {
   const parsed = grinderSchema.safeParse(input)
   if (!parsed.success) {
@@ -44,7 +45,7 @@ export async function createGrinder(
 
   const { data, error } = await supabase
     .from('grinders')
-    .insert({ ...parsed.data, user_id: user.id })
+    .insert({ ...parsed.data, user_id: user.id, group_id: groupId ?? null })
     .select('id')
     .single()
 
@@ -299,6 +300,7 @@ const equipmentNameSchema = z
 export async function createEquipment(
   kind: 'dripper' | 'filter' | 'kettle',
   name: string,
+  groupId?: string, // FR-10.9：歸屬群組（undefined＝個人）
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const parsedKind = equipmentKindSchema.safeParse(kind)
   const parsedName = equipmentNameSchema.safeParse(name)
@@ -314,7 +316,12 @@ export async function createEquipment(
 
   const { data, error } = await supabase
     .from('equipment')
-    .insert({ user_id: user.id, kind: parsedKind.data, name: parsedName.data })
+    .insert({
+      user_id: user.id,
+      kind: parsedKind.data,
+      name: parsedName.data,
+      group_id: groupId ?? null,
+    })
     .select('id')
     .single()
 
@@ -349,13 +356,13 @@ export type CreateTagResult =
   | { ok: false; error: string }
 
 /**
- * BREW-9：建立自訂標籤（scope=user，個人私有 FR-5.3/5.6）。
+ * BREW-9：建立自訂標籤（scope=user，個人私有 FR-5.3）。
  * 同名撞 unique（uq_tag_user）時直接回傳既有標籤讓使用者選用。
- * alsoSuggest = true 時同步寫入 tag_suggestions（D18：提交建議同時建立個人標籤）。
+ * suggestToGroupId：同步提交到該群組審核（FR-5.6 改版；個人標籤先立即可用）。
  */
 export async function createUserTag(
   name: string,
-  alsoSuggest = false,
+  suggestToGroupId?: string,
 ): Promise<CreateTagResult> {
   const parsed = tagNameSchema.safeParse(name)
   if (!parsed.success) {
@@ -397,15 +404,82 @@ export async function createUserTag(
     tag = data
   }
 
-  if (alsoSuggest) {
-    await supabase
-      .from('tag_suggestions')
-      .insert({ user_id: user.id, name: parsed.data })
-    // 提交失敗不擋主流程（標籤本身已可用）
+  if (suggestToGroupId) {
+    await supabase.from('tag_suggestions').insert({
+      user_id: user.id,
+      name: parsed.data,
+      group_id: suggestToGroupId,
+    })
+    // 提交失敗不擋主流程（個人標籤本身已可用）
   }
 
   revalidatePath('/settings')
   return { ok: true, tag }
+}
+
+/** FR-5.6：群組建立者核可提交 → 建立群組標籤（全員可用）並標記 approved。 */
+export async function approveTagSuggestion(
+  suggestionId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '請先登入' }
+
+  // RLS：只有建立者能讀到所轄群組的提交
+  const { data: suggestion } = await supabase
+    .from('tag_suggestions')
+    .select('id, name, group_id, status')
+    .eq('id', suggestionId)
+    .maybeSingle()
+  if (!suggestion?.group_id) {
+    return { ok: false, error: '找不到這筆提交或沒有權限' }
+  }
+  if (suggestion.status !== 'pending') {
+    return { ok: false, error: '這筆提交已處理過' }
+  }
+
+  const { error: tagError } = await supabase.from('flavor_tags').insert({
+    name: suggestion.name,
+    category: '群組',
+    scope: 'group',
+    owner_user_id: user.id, // 政策要求＝群組建立者
+    group_id: suggestion.group_id,
+  })
+  // 同名群組標籤已存在（23505）視同核可成功
+  if (tagError && tagError.code !== '23505') {
+    return { ok: false, error: `核可失敗：${tagError.message}` }
+  }
+
+  const { error } = await supabase
+    .from('tag_suggestions')
+    .update({ status: 'approved' })
+    .eq('id', suggestionId)
+  if (error) return { ok: false, error: `狀態更新失敗：${error.message}` }
+
+  revalidatePath('/settings')
+  revalidatePath('/brews')
+  return { ok: true }
+}
+
+/** FR-5.6：拒絕提交（提交者的個人標籤不受影響）。 */
+export async function rejectTagSuggestion(
+  suggestionId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('tag_suggestions')
+    .update({ status: 'rejected' })
+    .eq('id', suggestionId)
+    .eq('status', 'pending')
+    .select('id')
+
+  if (error) return { ok: false, error: `操作失敗：${error.message}` }
+  if (!data.length) return { ok: false, error: '找不到這筆提交或沒有權限' }
+
+  revalidatePath('/settings')
+  return { ok: true }
 }
 
 /** BREW-17：刪除自訂標籤（brew_flavor_tags 由 FK cascade 一併移除關聯）。 */
