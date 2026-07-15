@@ -7,10 +7,9 @@ import {
   Copy,
   Loader2,
   LogOut,
+  MoreHorizontal,
   Plus,
   RefreshCw,
-  Shield,
-  ShieldOff,
   Trash2,
   X,
 } from 'lucide-react'
@@ -28,6 +27,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -231,33 +236,108 @@ function JoinRequestRow({ request }: { request: GroupJoinRequest }) {
   )
 }
 
-export function MemberSection({
+/** 成員列：名稱＋身分徽章；建立者可用「⋯」文字選單指派副組長/移出（FR-10.12）。 */
+function MemberRow({
   group,
-  myUserId,
-  joinRequests,
+  member,
 }: {
   group: MyGroup
-  myUserId: string
-  joinRequests: GroupJoinRequest[]
+  member: MyGroup['members'][number]
 }) {
-  async function onRemove(userId: string, username: string) {
-    const result = await removeGroupMember(group.id, userId)
-    if (!result.ok) toast.error(result.error)
-    else toast.success(`已將 ${username} 移出群組`)
-  }
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const isOwnerRow = member.user_id === group.owner_id
 
-  // FR-10.12：建立者指派/解除副組長（副組長可審核入群/器材/標籤）
-  async function onToggleRole(member: MyGroup['members'][number]) {
+  async function onToggleRole() {
     const nextRole = member.role === 'admin' ? 'member' : 'admin'
     const result = await setGroupMemberRole(group.id, member.user_id, nextRole)
     if (!result.ok) toast.error(result.error)
     else
       toast.success(
         nextRole === 'admin'
-          ? `已指派 ${member.username} 為副組長`
+          ? `已指派 ${member.username} 為副組長，可協助審核入群／器材／標籤`
           : `已解除 ${member.username} 的副組長`,
       )
   }
+
+  async function onRemove() {
+    const result = await removeGroupMember(group.id, member.user_id)
+    if (!result.ok) toast.error(result.error)
+    else toast.success(`已將 ${member.username} 移出群組`)
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5">
+      <span className="flex items-center gap-2 text-sm">
+        {member.username}
+        {isOwnerRow ? (
+          <Badge variant="outline">建立者</Badge>
+        ) : (
+          member.role === 'admin' && <Badge variant="outline">副組長</Badge>
+        )}
+      </span>
+      {group.isOwner && !isOwnerRow && (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                aria-label={`管理成員 ${member.username}`}
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onToggleRole}>
+                {member.role === 'admin'
+                  ? '解除副組長'
+                  : '設為副組長（可審核入群／器材／標籤）'}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setConfirmRemove(true)}
+              >
+                移出群組
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  將 {member.username} 移出群組？
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  移出後對方將看不到群組豆與成員的沖煮紀錄；若要回來需重新以邀請碼申請。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={onRemove}>移出</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function MemberSection({
+  group,
+  joinRequests,
+}: {
+  group: MyGroup
+  joinRequests: GroupJoinRequest[]
+}) {
+  // 建立者在最前、副組長次之，其餘依名稱
+  const roleOrder = (m: MyGroup['members'][number]) =>
+    m.user_id === group.owner_id ? 0 : m.role === 'admin' ? 1 : 2
+  const members = [...group.members].sort(
+    (a, b) =>
+      roleOrder(a) - roleOrder(b) || a.username.localeCompare(b.username),
+  )
 
   return (
     <div className="space-y-2">
@@ -271,51 +351,9 @@ export function MemberSection({
           ))}
         </div>
       )}
-      <div className="flex flex-wrap gap-1">
-        {group.members.map((member) => (
-          <Badge key={member.user_id} variant="secondary" className="gap-1">
-            {member.username}
-            {member.user_id === group.owner_id ? (
-              <span className="text-muted-foreground text-xs">建立者</span>
-            ) : (
-              member.role === 'admin' && (
-                <span className="text-muted-foreground text-xs">副組長</span>
-              )
-            )}
-            {group.isOwner && member.user_id !== myUserId && (
-              <>
-                <button
-                  type="button"
-                  aria-label={
-                    member.role === 'admin'
-                      ? `解除 ${member.username} 的副組長`
-                      : `指派 ${member.username} 為副組長`
-                  }
-                  title={
-                    member.role === 'admin'
-                      ? '解除副組長'
-                      : '指派為副組長（可審核入群/器材/標籤）'
-                  }
-                  onClick={() => onToggleRole(member)}
-                  className="hover:text-foreground"
-                >
-                  {member.role === 'admin' ? (
-                    <ShieldOff className="size-3" />
-                  ) : (
-                    <Shield className="size-3" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  aria-label={`移除 ${member.username}`}
-                  onClick={() => onRemove(member.user_id, member.username)}
-                  className="hover:text-destructive"
-                >
-                  <X className="size-3" />
-                </button>
-              </>
-            )}
-          </Badge>
+      <div className="space-y-1.5">
+        {members.map((member) => (
+          <MemberRow key={member.user_id} group={group} member={member} />
         ))}
       </div>
     </div>

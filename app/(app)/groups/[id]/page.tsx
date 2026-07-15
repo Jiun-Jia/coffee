@@ -100,7 +100,6 @@ export default async function GroupDetailPage({
         <CardContent>
           <MemberSection
             group={group}
-            myUserId={profile?.id ?? ''}
             joinRequests={joinRequests.filter((r) => r.group_id === id)}
           />
         </CardContent>
