@@ -811,7 +811,11 @@ export type Database = {
       }
     }
     Functions: {
+      has_pending_join_request: { Args: { gid: string }; Returns: boolean }
+      is_group_manager: { Args: { gid: string }; Returns: boolean }
       is_group_member: { Args: { gid: string }; Returns: boolean }
+      is_group_owner: { Args: { gid: string }; Returns: boolean }
+      requested_my_group: { Args: { other: string }; Returns: boolean }
       shares_group_with: { Args: { other: string }; Returns: boolean }
       tag_on_visible_brew: { Args: { tid: string }; Returns: boolean }
     }
