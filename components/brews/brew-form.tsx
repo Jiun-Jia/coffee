@@ -39,6 +39,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { BeanQuickAddDialog } from '@/components/beans/bean-quick-add-dialog'
+import { BrewTimer } from '@/components/brews/brew-timer'
 import {
   FlavorTagSelect,
   type TagOption,
@@ -74,7 +75,8 @@ export type EquipmentOptions = {
 }
 
 /** 器材下拉為空時的引導（清單來自設定頁登錄的器材，依豆子歸屬過濾） */
-const GEAR_EMPTY_HINT = '這包豆目前沒有可選器材，可到「設定」新增，或直接輸入文字'
+const GEAR_EMPTY_HINT =
+  '這包豆目前沒有可選器材，可到「設定」新增，或直接輸入文字'
 
 const FIELD_LABELS: Record<string, string> = {
   bean_id: '豆子',
@@ -115,9 +117,7 @@ function byBeanOwnership<T extends { group_id: string | null }>(
   items: T[],
   beanGroupId: string | null,
 ): T[] {
-  return items.filter(
-    (i) => i.group_id === null || i.group_id === beanGroupId,
-  )
+  return items.filter((i) => i.group_id === null || i.group_id === beanGroupId)
 }
 
 export function BrewForm({
@@ -178,20 +178,36 @@ export function BrewForm({
     }
   }, [form, brewedAtISO])
 
-  const [beanId, brewType, brewedAt, doseG, waterG, iceG, includeIce, grinderId] =
-    useWatch({
-      control: form.control,
-      name: [
-        'bean_id',
-        'brew_type',
-        'brewed_at',
-        'dose_g',
-        'water_g',
-        'ice_g',
-        'ratio_include_ice',
-        'grinder_id',
-      ],
-    })
+  const [
+    beanId,
+    brewType,
+    brewedAt,
+    doseG,
+    waterG,
+    iceG,
+    includeIce,
+    grinderId,
+  ] = useWatch({
+    control: form.control,
+    name: [
+      'bean_id',
+      'brew_type',
+      'brewed_at',
+      'dose_g',
+      'water_g',
+      'ice_g',
+      'ratio_include_ice',
+      'grinder_id',
+    ],
+  })
+
+  // FR-13 計時器：分段目前值（引導目標）與悶蒸計畫值需要即時反應
+  const poursValues = useWatch({ control: form.control, name: 'pours' })
+  const bloomTimeValue = useWatch({
+    control: form.control,
+    name: 'bloom_time_sec',
+  })
+  const [timerRunning, setTimerRunning] = useState(false)
 
   // BEAN-9：inline 新增的豆子先併入本地選項（server revalidate 前即可選用）
   const [localBeans, setLocalBeans] = useState<BeanOption[]>([])
@@ -578,6 +594,7 @@ export function BrewForm({
                       <TimeInput
                         value={field.value}
                         onChange={field.onChange}
+                        disabled={timerRunning}
                       />
                     </FormControl>
                     <FormMessage />
@@ -594,6 +611,7 @@ export function BrewForm({
                       <TimeInput
                         value={field.value}
                         onChange={field.onChange}
+                        disabled={timerRunning}
                       />
                     </FormControl>
                     <FormMessage />
@@ -622,16 +640,30 @@ export function BrewForm({
           </CardContent>
         </Card>
 
-        {/* ── 注水分段（FR-11）──────────────────── */}
+        {/* ── 注水分段（FR-11）＋計時器（FR-13）────── */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">注水分段</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <BrewTimer
+              pours={poursValues ?? []}
+              bloomTargetSec={bloomTimeValue}
+              onUpdatePour={(index, pour) => pourArray.update(index, pour)}
+              onAppendPour={(pour) => pourArray.append(pour)}
+              onRemovePour={(index) => pourArray.remove(index)}
+              onBloomEnd={(sec) =>
+                form.setValue('bloom_time_sec', sec, { shouldDirty: true })
+              }
+              onStop={(sec) =>
+                form.setValue('total_time_sec', sec, { shouldDirty: true })
+              }
+              onRunningChange={setTimerRunning}
+            />
             {/* 說明常駐（新增分段後仍保留，讓使用者知道每欄要填什麼） */}
             <p className="text-muted-foreground text-sm">
-              選填：逐段記錄「<span className="text-foreground">結束時間</span>＋
-              <span className="text-foreground">累積水量</span>＋
+              選填：逐段記錄「<span className="text-foreground">結束時間</span>
+              ＋<span className="text-foreground">累積水量</span>＋
               <span className="text-foreground">手法</span>」。
               悶蒸已於上方欄位記錄，分段從悶蒸後的第一次注水開始即可
               （想把悶蒸列為第 1 段也可以，依個人習慣）。
@@ -650,7 +682,11 @@ export function BrewForm({
                   render={({ field: f }) => (
                     <FormItem>
                       <FormControl>
-                        <TimeInput value={f.value} onChange={f.onChange} />
+                        <TimeInput
+                          value={f.value}
+                          onChange={f.onChange}
+                          disabled={timerRunning}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -700,6 +736,7 @@ export function BrewForm({
                   aria-label={`刪除第 ${index + 1} 段`}
                   className="col-start-2 justify-self-end sm:col-start-auto"
                   onClick={() => pourArray.remove(index)}
+                  disabled={timerRunning}
                 >
                   <Trash2 className="size-4" />
                 </Button>
@@ -710,6 +747,7 @@ export function BrewForm({
                 type="button"
                 variant="outline"
                 size="sm"
+                disabled={timerRunning}
                 onClick={() =>
                   pourArray.append({
                     end_time_sec: undefined,

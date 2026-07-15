@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { BrewFilters } from '@/components/brews/brew-filters'
+import { BrewsTabs } from '@/components/brews/brews-tabs'
 import { toBrewFilters, type BrewSearchParams } from '@/lib/brew-filters'
 import { formatRatio } from '@/lib/format'
 import { listBeans } from '@/lib/queries/beans'
@@ -52,7 +53,10 @@ function SortHeader({
   params.set('sort', column)
   params.set('dir', active ? dir : 'desc')
   return (
-    <Link href={`/brews?${params.toString()}`} className="inline-flex items-center gap-1 hover:underline">
+    <Link
+      href={`/brews?${params.toString()}`}
+      className="inline-flex items-center gap-1 hover:underline"
+    >
       {label}
       {active &&
         (sp.dir === 'asc' ? (
@@ -107,6 +111,8 @@ export default async function BrewsPage({
         </Button>
       </div>
 
+      <BrewsTabs active="brews" />
+
       <BrewFilters options={filterOptions} />
 
       {brews.length === 0 ? (
@@ -130,9 +136,7 @@ export default async function BrewsPage({
         </Card>
       ) : (
         <>
-          <p className="text-muted-foreground text-sm">
-            共 {brews.length} 筆
-          </p>
+          <p className="text-muted-foreground text-sm">共 {brews.length} 筆</p>
           {/* 桌面：表格 */}
           <div className="hidden rounded-md border md:block">
             <Table>

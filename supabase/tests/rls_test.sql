@@ -759,9 +759,63 @@ end $$;
 
 reset role;
 
+-- ============================================================
+-- FR-14 配方（recipes）：個人私有，四種操作僅本人（RCP-1）
+-- ============================================================
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  insert into public.recipes (user_id, name, dose_g, water_g, pours)
+  values ('00000000-0000-0000-0000-00000000000a', '四六沖法', 20, 300,
+          '[{"end_time_sec":45,"cumulative_water_g":60,"note":"悶蒸"}]');
+
+  select count(*) into n from public.recipes;
+  if n <> 1 then raise exception 'FAIL: A 應看到自己的 1 個配方，實際 %', n; end if;
+end $$;
+
+-- A 無法建立 user_id=B 的配方（with check 生效）
 do $$
 begin
-  raise notice '=== RLS 隔離驗證全數通過（含 FR-10 群組） ===';
+  begin
+    insert into public.recipes (user_id, name)
+    values ('00000000-0000-0000-0000-00000000000b', '駭入配方');
+    raise exception 'FAIL: A 不應能建立 user_id=B 的配方';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end $$;
+
+reset role;
+
+-- B 看不到、動不了 A 的配方
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.recipes;
+  if n <> 0 then raise exception 'FAIL: B 應看到 0 個配方，實際 %', n; end if;
+
+  update public.recipes set name = '偷改'
+  where user_id = '00000000-0000-0000-0000-00000000000a';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: B 不應能改 A 的配方'; end if;
+
+  delete from public.recipes
+  where user_id = '00000000-0000-0000-0000-00000000000a';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: B 不應能刪 A 的配方'; end if;
+end $$;
+
+reset role;
+
+do $$
+begin
+  raise notice '=== RLS 隔離驗證全數通過（含 FR-10 群組、FR-14 配方） ===';
 end $$;
 
 rollback;
