@@ -115,7 +115,7 @@ export async function applyToGroupByCode(
   return { ok: true, groupName: group.name }
 }
 
-/** 建立者核可入群申請：加成員＋刪申請列（走 service_role，需先驗建立者身分）。 */
+/** 管理者核可入群申請：加成員＋刪申請列（走 service_role，需先驗管理者身分）。 */
 export async function approveJoinRequest(
   requestId: string,
 ): Promise<{ ok: true; username: string } | { ok: false; error: string }> {
@@ -133,8 +133,17 @@ export async function approveJoinRequest(
     .maybeSingle()
 
   if (!request) return { ok: false, error: '找不到這筆申請（可能已撤回）' }
+  // FR-10.12：建立者或副組長皆可核可
   if (request.groups?.owner_id !== user.id) {
-    return { ok: false, error: '只有群組建立者可以核可申請' }
+    const { data: me } = await admin
+      .from('group_members')
+      .select('role')
+      .eq('group_id', request.group_id)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (me?.role !== 'admin') {
+      return { ok: false, error: '只有群組建立者或副組長可以核可申請' }
+    }
   }
 
   const { error } = await admin
@@ -218,6 +227,35 @@ export async function leaveGroup(
   if (!count) return { ok: false, error: '你不在這個群組中' }
 
   revalidateGroupPages()
+  return { ok: true }
+}
+
+/** FR-10.12：建立者指派/解除副組長（RLS 限建立者的 update 政策）。 */
+export async function setGroupMemberRole(
+  groupId: string,
+  userId: string,
+  role: 'member' | 'admin',
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '請先登入' }
+  if (userId === user.id) {
+    return { ok: false, error: '建立者本身即為管理者，不需指派' }
+  }
+
+  const { data, error } = await supabase
+    .from('group_members')
+    .update({ role })
+    .eq('group_id', groupId)
+    .eq('user_id', userId)
+    .select('user_id')
+
+  if (error) return { ok: false, error: `操作失敗：${error.message}` }
+  if (!data.length) return { ok: false, error: '只有群組建立者可以指派副組長' }
+
+  revalidatePath('/groups', 'layout')
   return { ok: true }
 }
 

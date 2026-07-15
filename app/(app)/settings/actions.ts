@@ -19,8 +19,8 @@ export type GrinderActionResult =
   | { ok: false; error: string }
 
 /**
- * FR-10.9b：群組器材審核 —— 成員新增為 pending（提案）、
- * 建立者新增直接 approved。回傳 status 或錯誤（找不到群組）。
+ * FR-10.9b：群組器材審核 —— 一般成員新增為 pending（提案）、
+ * 管理者（建立者或副組長，FR-10.12）新增直接 approved。
  */
 async function resolveGearStatus(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -33,7 +33,15 @@ async function resolveGearStatus(
     .eq('id', groupId)
     .maybeSingle()
   if (!group) return { error: '找不到這個群組' }
-  return { status: group.owner_id === userId ? 'approved' : 'pending' }
+  if (group.owner_id === userId) return { status: 'approved' }
+
+  const { data: me } = await supabase
+    .from('group_members')
+    .select('role')
+    .eq('group_id', groupId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  return { status: me?.role === 'admin' ? 'approved' : 'pending' }
 }
 
 /**

@@ -1,13 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import type { EquipmentKind } from '@/lib/queries/equipment'
 
-export type GroupMember = { user_id: string; username: string }
+export type GroupRole = 'member' | 'admin'
+export type GroupMember = {
+  user_id: string
+  username: string
+  role: GroupRole
+}
 export type MyGroup = {
   id: string
   name: string
   owner_id: string
   invite_code: string
   isOwner: boolean
+  /** 建立者或副組長（FR-10.12）＝可審核入群/器材/標籤 */
+  isManager: boolean
   members: GroupMember[]
 }
 
@@ -21,7 +28,9 @@ export async function listMyGroups(): Promise<MyGroup[]> {
 
   const { data, error } = await supabase
     .from('groups')
-    .select('id, name, owner_id, invite_code, group_members(user_id, profiles(username))')
+    .select(
+      'id, name, owner_id, invite_code, group_members(user_id, role, profiles(username))',
+    )
     .order('created_at')
 
   if (error) throw new Error(`讀取群組失敗：${error.message}`)
@@ -34,17 +43,23 @@ export async function listMyGroups(): Promise<MyGroup[]> {
           g.owner_id === user.id ||
           g.group_members.some((m) => m.user_id === user.id),
       )
-      .map((g) => ({
-        id: g.id,
-        name: g.name,
-        owner_id: g.owner_id,
-        invite_code: g.invite_code,
-        isOwner: g.owner_id === user.id,
-        members: g.group_members.map((m) => ({
-          user_id: m.user_id,
-          username: m.profiles?.username ?? '（未知）',
-        })),
-      }))
+      .map((g) => {
+        const isOwner = g.owner_id === user.id
+        const myRole = g.group_members.find((m) => m.user_id === user.id)?.role
+        return {
+          id: g.id,
+          name: g.name,
+          owner_id: g.owner_id,
+          invite_code: g.invite_code,
+          isOwner,
+          isManager: isOwner || myRole === 'admin',
+          members: g.group_members.map((m) => ({
+            user_id: m.user_id,
+            username: m.profiles?.username ?? '（未知）',
+            role: (m.role === 'admin' ? 'admin' : 'member') as GroupRole,
+          })),
+        }
+      })
   )
 }
 
@@ -112,15 +127,18 @@ export async function listGroupJoinRequests(): Promise<GroupJoinRequest[]> {
   }))
 }
 
-/** 群組最近沖煮動態（brew_details 已含沖煮人與豆名；RLS 限成員可見）。 */
-export async function listGroupBrews(groupId: string, limit = 10) {
+/**
+ * 群組豆上的全部沖煮（最近動態＋每支豆最佳排行共用；RLS 限成員可見）。
+ * 朋友圈規模資料量小，直接全撈（上限 2000 筆保險）。
+ */
+export async function listGroupBrews(groupId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('brew_details')
-    .select('id, brewed_at, overall, name_batch, roaster, brewer_username')
+    .select('id, bean_id, brewed_at, overall, name_batch, roaster, brewer_username')
     .eq('group_id', groupId)
     .order('brewed_at', { ascending: false })
-    .limit(limit)
+    .limit(2000)
 
   if (error) throw new Error(`讀取群組沖煮失敗：${error.message}`)
   return data

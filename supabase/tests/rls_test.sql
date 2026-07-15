@@ -623,6 +623,119 @@ end $$;
 
 reset role;
 
+-- ============================================================
+-- 5c) FR-10.12 副群組長：三種審核可、管理已生效項目不可
+-- ============================================================
+
+-- C（一般成員）不能自封副組長（update 政策限建立者 → 0 筆）
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  update public.group_members set role = 'admin'
+  where group_id = '60000000-0000-0000-0000-000000000001'
+    and user_id = '00000000-0000-0000-0000-00000000000c';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: 非建立者不應能指派副組長'; end if;
+end $$;
+
+reset role;
+
+-- A（建立者）指派 C 為副組長
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  update public.group_members set role = 'admin'
+  where group_id = '60000000-0000-0000-0000-000000000001'
+    and user_id = '00000000-0000-0000-0000-00000000000c';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 建立者應能指派副組長'; end if;
+end $$;
+
+reset role;
+
+-- B 再送一筆入群申請、superuser 補一筆 pending 器材提案（供副組長審核）
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated"}';
+
+insert into public.group_join_requests (id, group_id, user_id)
+values ('90000000-0000-0000-0000-000000000003',
+        '60000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-00000000000b');
+
+reset role;
+
+insert into public.equipment (id, user_id, group_id, kind, name, status)
+values ('80000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-00000000000a',
+        '60000000-0000-0000-0000-000000000001', 'dripper', '成員提案濾杯', 'pending');
+
+-- C（副組長）視角
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  -- 看得到入群申請與申請人名稱
+  select count(*) into n from public.group_join_requests
+  where id = '90000000-0000-0000-0000-000000000003';
+  if n <> 1 then raise exception 'FAIL: 副組長應看到入群申請'; end if;
+
+  select count(*) into n from public.profiles
+  where id = '00000000-0000-0000-0000-00000000000b';
+  if n <> 1 then raise exception 'FAIL: 副組長應能讀申請人名稱'; end if;
+
+  -- 可退回入群申請
+  delete from public.group_join_requests
+  where id = '90000000-0000-0000-0000-000000000003';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 副組長應能退回入群申請'; end if;
+
+  -- 可核可器材提案
+  update public.equipment set status = 'approved'
+  where id = '80000000-0000-0000-0000-000000000004';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 副組長應能核可器材提案'; end if;
+
+  -- 不可刪除已核可器材（管理權仍在建立者）
+  delete from public.equipment where id = '80000000-0000-0000-0000-000000000004';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: 副組長不應能刪除已核可器材'; end if;
+
+  -- 不可刪群組標籤（管理權仍在建立者）
+  delete from public.flavor_tags where name = '烏龍茶感' and scope = 'group';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: 副組長不應能刪群組標籤'; end if;
+end $$;
+
+-- 副組長可審核標籤提交（自己提交自己核可）並建立群組標籤
+insert into public.tag_suggestions (id, user_id, name, group_id)
+values ('70000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-00000000000c', '副組長茶香',
+        '60000000-0000-0000-0000-000000000001');
+
+do $$
+declare n int;
+begin
+  update public.tag_suggestions set status = 'approved'
+  where id = '70000000-0000-0000-0000-000000000002';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 副組長應能審核標籤提交'; end if;
+end $$;
+
+insert into public.flavor_tags (name, category, scope, owner_user_id, group_id)
+values ('副組長茶香', '群組', 'group',
+        '00000000-0000-0000-0000-00000000000c',
+        '60000000-0000-0000-0000-000000000001');
+
+reset role;
+
 -- A（建立者）可解散群組 → 群組豆回歸個人（set null）
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}';

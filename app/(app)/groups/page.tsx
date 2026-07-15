@@ -53,7 +53,7 @@ export default async function GroupsPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {groups.map((group) => {
-            const pending = group.isOwner ? pendingCount(group.id) : 0
+            const pending = group.isManager ? pendingCount(group.id) : 0
             return (
               <Link
                 key={group.id}
@@ -63,7 +63,11 @@ export default async function GroupsPage() {
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate font-medium">{group.name}</p>
                   <Badge variant="outline">
-                    {group.isOwner ? '建立者' : '成員'}
+                    {group.isOwner
+                      ? '建立者'
+                      : group.isManager
+                        ? '副組長'
+                        : '成員'}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground mt-1 text-sm">

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft, Coffee, Plus } from 'lucide-react'
+import { ChevronLeft, Coffee, Plus, Trophy } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,7 +37,7 @@ export default async function GroupDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [profile, groups, gear, tags, pendingTags, joinRequests, beans, recentBrews] =
+  const [profile, groups, gear, tags, pendingTags, joinRequests, beans, groupBrews] =
     await Promise.all([
       getCurrentProfile(),
       listMyGroups(),
@@ -53,6 +53,21 @@ export default async function GroupDetailPage({
   if (!group) notFound()
 
   const groupBeans = beans.filter((b) => b.group_id === id)
+  const recentBrews = groupBrews.slice(0, 10)
+
+  // 每支豆的「誰沖得最好」：各成員在該豆的最高整體評分，由高到低取前 3
+  function beanRanking(beanId: string) {
+    const best = new Map<string, number>()
+    for (const brew of groupBrews) {
+      if (brew.bean_id !== beanId || brew.overall == null) continue
+      const name = brew.brewer_username ?? '（未知）'
+      if ((best.get(name) ?? 0) < brew.overall) best.set(name, brew.overall)
+    }
+    return [...best.entries()]
+      .map(([username, score]) => ({ username, score }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+  }
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -68,7 +83,7 @@ export default async function GroupDetailPage({
           <h1 className="text-2xl font-semibold">
             {group.name}
             <Badge variant="outline" className="ml-2 align-middle">
-              {group.isOwner ? '建立者' : '成員'}
+              {group.isOwner ? '建立者' : group.isManager ? '副組長' : '成員'}
             </Badge>
           </h1>
           <HeaderActions group={group} />
@@ -110,31 +125,42 @@ export default async function GroupDetailPage({
               還沒有群組豆。新增豆子時把歸屬設為這個群組即可。
             </p>
           )}
-          {groupBeans.map((bean) => (
-            <div
-              key={bean.id}
-              className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
-            >
-              <div className="min-w-0">
-                <Link
-                  href={`/beans/${bean.id}`}
-                  className="text-sm font-medium hover:underline"
-                >
-                  {bean.name_batch}
-                </Link>
-                <p className="text-muted-foreground truncate text-xs">
-                  {bean.roaster} · 烘焙 {bean.roast_date} · {bean.brew_count}{' '}
-                  筆沖煮
-                </p>
+          {groupBeans.map((bean) => {
+            const ranking = beanRanking(bean.id)
+            return (
+              <div
+                key={bean.id}
+                className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <Link
+                    href={`/beans/${bean.id}`}
+                    className="text-sm font-medium hover:underline"
+                  >
+                    {bean.name_batch}
+                  </Link>
+                  <p className="text-muted-foreground truncate text-xs">
+                    {bean.roaster} · 烘焙 {bean.roast_date} · {bean.brew_count}{' '}
+                    筆沖煮
+                  </p>
+                  {ranking.length > 0 && (
+                    <p className="text-muted-foreground mt-0.5 flex items-center gap-1 truncate text-xs">
+                      <Trophy className="size-3 shrink-0 text-amber-500" />
+                      {ranking
+                        .map((r) => `${r.username} ${r.score}`)
+                        .join(' · ')}
+                    </p>
+                  )}
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/brews/new?beanId=${bean.id}`}>
+                    <Coffee className="size-4" />
+                    沖煮
+                  </Link>
+                </Button>
               </div>
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/brews/new?beanId=${bean.id}`}>
-                  <Coffee className="size-4" />
-                  沖煮
-                </Link>
-              </Button>
-            </div>
-          ))}
+            )
+          })}
         </CardContent>
       </Card>
 
@@ -142,7 +168,7 @@ export default async function GroupDetailPage({
         <CardHeader>
           <CardTitle className="text-base">共用器材</CardTitle>
           <CardDescription>
-            全員沖煮群組豆時可選用；成員新增的器材由建立者核可後生效
+            全員沖煮群組豆時可選用；成員新增的器材由建立者或副組長核可後生效
           </CardDescription>
         </CardHeader>
         <CardContent>

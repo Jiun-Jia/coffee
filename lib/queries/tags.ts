@@ -82,19 +82,16 @@ export type PendingSuggestion = {
   submitter: string
 }
 
-/** 待我審核的提交（我建立的群組、status=pending，FR-5.6 改版）。 */
+/**
+ * 待審核的提交（status=pending）。RLS 回「我提交的＋我管理的群組收到的」
+ * （FR-10.12 副組長可審）；頁面依 group_id 過濾、僅管理者顯示審核 UI。
+ */
 export async function listPendingSuggestions(): Promise<PendingSuggestion[]> {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return []
-
   const { data, error } = await supabase
     .from('tag_suggestions')
-    .select('id, name, group_id, user_id, profiles(username), groups!inner(owner_id)')
+    .select('id, name, group_id, user_id, profiles(username)')
     .eq('status', 'pending')
-    .eq('groups.owner_id', user.id)
     .order('created_at')
 
   if (error) throw new Error(`讀取待審提交失敗：${error.message}`)

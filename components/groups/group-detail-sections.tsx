@@ -2,7 +2,18 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Copy, Loader2, LogOut, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import {
+  Check,
+  Copy,
+  Loader2,
+  LogOut,
+  Plus,
+  RefreshCw,
+  Shield,
+  ShieldOff,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -36,6 +47,7 @@ import {
   regenerateInviteCode,
   rejectTagSuggestion,
   removeGroupMember,
+  setGroupMemberRole,
 } from '@/app/(app)/groups/actions'
 import {
   createEquipment,
@@ -234,9 +246,22 @@ export function MemberSection({
     else toast.success(`已將 ${username} 移出群組`)
   }
 
+  // FR-10.12：建立者指派/解除副組長（副組長可審核入群/器材/標籤）
+  async function onToggleRole(member: MyGroup['members'][number]) {
+    const nextRole = member.role === 'admin' ? 'member' : 'admin'
+    const result = await setGroupMemberRole(group.id, member.user_id, nextRole)
+    if (!result.ok) toast.error(result.error)
+    else
+      toast.success(
+        nextRole === 'admin'
+          ? `已指派 ${member.username} 為副組長`
+          : `已解除 ${member.username} 的副組長`,
+      )
+  }
+
   return (
     <div className="space-y-2">
-      {group.isOwner && joinRequests.length > 0 && (
+      {group.isManager && joinRequests.length > 0 && (
         <div className="space-y-1.5 rounded-md border border-dashed p-2">
           <p className="text-muted-foreground text-xs font-medium">
             待審核的入群申請
@@ -250,18 +275,45 @@ export function MemberSection({
         {group.members.map((member) => (
           <Badge key={member.user_id} variant="secondary" className="gap-1">
             {member.username}
-            {member.user_id === group.owner_id && (
+            {member.user_id === group.owner_id ? (
               <span className="text-muted-foreground text-xs">建立者</span>
+            ) : (
+              member.role === 'admin' && (
+                <span className="text-muted-foreground text-xs">副組長</span>
+              )
             )}
             {group.isOwner && member.user_id !== myUserId && (
-              <button
-                type="button"
-                aria-label={`移除 ${member.username}`}
-                onClick={() => onRemove(member.user_id, member.username)}
-                className="hover:text-destructive"
-              >
-                <X className="size-3" />
-              </button>
+              <>
+                <button
+                  type="button"
+                  aria-label={
+                    member.role === 'admin'
+                      ? `解除 ${member.username} 的副組長`
+                      : `指派 ${member.username} 為副組長`
+                  }
+                  title={
+                    member.role === 'admin'
+                      ? '解除副組長'
+                      : '指派為副組長（可審核入群/器材/標籤）'
+                  }
+                  onClick={() => onToggleRole(member)}
+                  className="hover:text-foreground"
+                >
+                  {member.role === 'admin' ? (
+                    <ShieldOff className="size-3" />
+                  ) : (
+                    <Shield className="size-3" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`移除 ${member.username}`}
+                  onClick={() => onRemove(member.user_id, member.username)}
+                  className="hover:text-destructive"
+                >
+                  <X className="size-3" />
+                </button>
+              </>
             )}
           </Badge>
         ))}
@@ -378,7 +430,7 @@ export function TagSection({
 }) {
   return (
     <div className="space-y-2">
-      {group.isOwner && pending.length > 0 && (
+      {group.isManager && pending.length > 0 && (
         <div className="space-y-1.5 rounded-md border border-dashed p-2">
           <p className="text-muted-foreground text-xs font-medium">
             待審核的標籤提交
@@ -425,14 +477,19 @@ function deleteGear(item: GroupGearItem) {
     : deleteEquipment(item.id)
 }
 
-/** 群組器材 chip：待審核（建立者可核可/退回、提案人可撤回）或已生效（建立者可刪）。 */
+/**
+ * 群組器材 chip：待審核（管理者可核可/退回、提案人可撤回）
+ * 或已生效（僅建立者可刪，FR-10.12 副組長不含管理已生效項目）。
+ */
 function GearChip({
   item,
-  isOwner,
+  canReview,
+  canManage,
   myUserId,
 }: {
   item: GroupGearItem
-  isOwner: boolean
+  canReview: boolean
+  canManage: boolean
   myUserId: string
 }) {
   const [busy, setBusy] = useState(false)
@@ -461,7 +518,7 @@ function GearChip({
         <span className="text-muted-foreground text-xs">
           待審核・{item.submitter}
         </span>
-        {isOwner && (
+        {canReview && (
           <button
             type="button"
             aria-label={`核可 ${item.name}`}
@@ -473,13 +530,13 @@ function GearChip({
             <Check className="size-3" />
           </button>
         )}
-        {(isOwner || item.user_id === myUserId) && (
+        {(canReview || item.user_id === myUserId) && (
           <button
             type="button"
-            aria-label={`${isOwner ? '退回' : '撤回'} ${item.name}`}
-            title={isOwner ? '退回' : '撤回'}
+            aria-label={`${canReview ? '退回' : '撤回'} ${item.name}`}
+            title={canReview ? '退回' : '撤回'}
             disabled={busy}
-            onClick={() => onRemove(isOwner ? '退回' : '撤回')}
+            onClick={() => onRemove(canReview ? '退回' : '撤回')}
             className="hover:text-destructive"
           >
             <X className="size-3" />
@@ -489,7 +546,7 @@ function GearChip({
     )
   }
 
-  if (!isOwner) return <Badge variant="secondary">{item.name}</Badge>
+  if (!canManage) return <Badge variant="secondary">{item.name}</Badge>
 
   return (
     <AlertDialog>
@@ -575,7 +632,7 @@ export function GearSection({
       {gear.length === 0 && (
         <p className="text-muted-foreground text-sm">
           還沒有共用器材。新增後全員沖煮群組豆時可直接選用
-          {!group.isOwner && '（你新增的會先送建立者核可）'}。
+          {!group.isManager && '（你新增的會先送審核）'}。
         </p>
       )}
       {GEAR_KINDS.map(({ kind: k, label }) => {
@@ -588,7 +645,8 @@ export function GearSection({
               <GearChip
                 key={item.id}
                 item={item}
-                isOwner={group.isOwner}
+                canReview={group.isManager}
+                canManage={group.isOwner}
                 myUserId={myUserId}
               />
             ))}
