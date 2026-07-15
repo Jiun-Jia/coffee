@@ -578,6 +578,113 @@ export type Database = {
         }
         Relationships: []
       }
+      recipes: {
+        Row: {
+          bloom_time_sec: number | null
+          bloom_water_g: number | null
+          brew_type: Database["public"]["Enums"]["brew_type"]
+          created_at: string
+          dose_g: number | null
+          dripper: string | null
+          filter: string | null
+          grind_setting: string | null
+          grinder_id: string | null
+          ice_g: number | null
+          id: string
+          kettle: string | null
+          name: string
+          notes: string | null
+          pour_notes: string | null
+          pours: Json
+          ratio_include_ice: boolean
+          source_brew_id: string | null
+          total_time_sec: number | null
+          updated_at: string
+          user_id: string
+          water_g: number | null
+          water_temp: number | null
+        }
+        Insert: {
+          bloom_time_sec?: number | null
+          bloom_water_g?: number | null
+          brew_type?: Database["public"]["Enums"]["brew_type"]
+          created_at?: string
+          dose_g?: number | null
+          dripper?: string | null
+          filter?: string | null
+          grind_setting?: string | null
+          grinder_id?: string | null
+          ice_g?: number | null
+          id?: string
+          kettle?: string | null
+          name: string
+          notes?: string | null
+          pour_notes?: string | null
+          pours?: Json
+          ratio_include_ice?: boolean
+          source_brew_id?: string | null
+          total_time_sec?: number | null
+          updated_at?: string
+          user_id: string
+          water_g?: number | null
+          water_temp?: number | null
+        }
+        Update: {
+          bloom_time_sec?: number | null
+          bloom_water_g?: number | null
+          brew_type?: Database["public"]["Enums"]["brew_type"]
+          created_at?: string
+          dose_g?: number | null
+          dripper?: string | null
+          filter?: string | null
+          grind_setting?: string | null
+          grinder_id?: string | null
+          ice_g?: number | null
+          id?: string
+          kettle?: string | null
+          name?: string
+          notes?: string | null
+          pour_notes?: string | null
+          pours?: Json
+          ratio_include_ice?: boolean
+          source_brew_id?: string | null
+          total_time_sec?: number | null
+          updated_at?: string
+          user_id?: string
+          water_g?: number | null
+          water_temp?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipes_grinder_id_fkey"
+            columns: ["grinder_id"]
+            isOneToOne: false
+            referencedRelation: "grinders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_source_brew_id_fkey"
+            columns: ["source_brew_id"]
+            isOneToOne: false
+            referencedRelation: "brew_details"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_source_brew_id_fkey"
+            columns: ["source_brew_id"]
+            isOneToOne: false
+            referencedRelation: "brews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tag_suggestions: {
         Row: {
           category: string | null

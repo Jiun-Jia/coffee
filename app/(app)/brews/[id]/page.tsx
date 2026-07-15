@@ -4,14 +4,12 @@ import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BrewActions } from '@/components/brews/brew-actions'
+import { SaveRecipeDialog } from '@/components/brews/save-recipe-dialog'
 import { SensoryRadar } from '@/components/charts/sensory-radar'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBrew, getBrewPours, getBrewTags } from '@/lib/queries/brews'
-import {
-  BREW_TYPE_LABELS,
-  ROAST_LEVEL_LABELS,
-} from '@/lib/validations/enums'
+import { BREW_TYPE_LABELS, ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
 export const metadata: Metadata = { title: '沖煮詳情' }
 
@@ -77,7 +75,16 @@ export default async function BrewDetailPage({
               </Badge>
             )}
           </div>
-          {brew.id && isMine && <BrewActions brewId={brew.id} />}
+          {brew.id && (
+            <div className="flex flex-wrap gap-2">
+              {/* FR-14.1：可見的沖煮（含群組成員的）都能存成自己的配方 */}
+              <SaveRecipeDialog
+                brewId={brew.id}
+                suggestedName={brew.name_batch ?? undefined}
+              />
+              {isMine && <BrewActions brewId={brew.id} />}
+            </div>
+          )}
         </div>
         <p className="text-muted-foreground text-sm">
           <Link href={`/beans/${brew.bean_id}`} className="hover:underline">

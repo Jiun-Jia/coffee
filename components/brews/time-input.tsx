@@ -20,9 +20,12 @@ const SECOND_OPTIONS = Array.from({ length: 60 }, (_, i) => i) // 0–59 秒
 export function TimeInput({
   value,
   onChange,
+  disabled,
 }: {
   value?: number
   onChange: (value: number | undefined) => void
+  /** 計時器運作中鎖定手動輸入（FR-13.3，避免兩個來源互打） */
+  disabled?: boolean
 }) {
   const minutes = value != null ? Math.floor(value / 60) : undefined
   const seconds = value != null ? value % 60 : undefined
@@ -32,6 +35,7 @@ export function TimeInput({
       <Select
         value={minutes != null ? String(minutes) : ''}
         onValueChange={(v) => onChange(Number(v) * 60 + (seconds ?? 0))}
+        disabled={disabled}
       >
         <SelectTrigger className="flex-1" aria-label="分">
           <SelectValue placeholder="分" />
@@ -47,6 +51,7 @@ export function TimeInput({
       <Select
         value={seconds != null ? String(seconds) : ''}
         onValueChange={(v) => onChange((minutes ?? 0) * 60 + Number(v))}
+        disabled={disabled}
       >
         <SelectTrigger className="flex-1" aria-label="秒">
           <SelectValue placeholder="秒" />
@@ -67,6 +72,7 @@ export function TimeInput({
           aria-label="清除時間"
           className="shrink-0"
           onClick={() => onChange(undefined)}
+          disabled={disabled}
         >
           <X className="size-4" />
         </Button>
