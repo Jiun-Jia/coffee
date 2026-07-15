@@ -26,17 +26,104 @@ export async function listMyGroups(): Promise<MyGroup[]> {
 
   if (error) throw new Error(`讀取群組失敗：${error.message}`)
 
-  return data.map((g) => ({
-    id: g.id,
-    name: g.name,
-    owner_id: g.owner_id,
-    invite_code: g.invite_code,
-    isOwner: g.owner_id === user.id,
-    members: g.group_members.map((m) => ({
-      user_id: m.user_id,
-      username: m.profiles?.username ?? '（未知）',
-    })),
+  return (
+    data
+      // FR-10.10 後「申請中」的群組也讀得到（只為顯示名稱），這裡只留已加入的
+      .filter(
+        (g) =>
+          g.owner_id === user.id ||
+          g.group_members.some((m) => m.user_id === user.id),
+      )
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        owner_id: g.owner_id,
+        invite_code: g.invite_code,
+        isOwner: g.owner_id === user.id,
+        members: g.group_members.map((m) => ({
+          user_id: m.user_id,
+          username: m.profiles?.username ?? '（未知）',
+        })),
+      }))
+  )
+}
+
+// ============ FR-10.10 入群審核 ============
+
+export type MyJoinRequest = {
+  id: string
+  group_id: string
+  group_name: string
+  created_at: string
+}
+export type GroupJoinRequest = {
+  id: string
+  group_id: string
+  user_id: string
+  username: string
+  created_at: string
+}
+
+/** 我送出的入群申請（申請中）。群組名稱靠 has_pending_join_request 政策可讀。 */
+export async function listMyJoinRequests(): Promise<MyJoinRequest[]> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('group_join_requests')
+    .select('id, group_id, created_at, groups(name)')
+    .eq('user_id', user.id)
+    .order('created_at')
+
+  if (error) throw new Error(`讀取入群申請失敗：${error.message}`)
+  return data.map((r) => ({
+    id: r.id,
+    group_id: r.group_id,
+    group_name: r.groups?.name ?? '（未知）',
+    created_at: r.created_at,
   }))
+}
+
+/** 待我審核的入群申請（我建立的群組）。申請人名稱靠 requested_my_group 政策可讀。 */
+export async function listGroupJoinRequests(): Promise<GroupJoinRequest[]> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
+  // RLS 回「我的申請＋我群組收到的申請」；排除自己的即為待審清單
+  const { data, error } = await supabase
+    .from('group_join_requests')
+    .select('id, group_id, user_id, created_at, profiles(username)')
+    .neq('user_id', user.id)
+    .order('created_at')
+
+  if (error) throw new Error(`讀取待審申請失敗：${error.message}`)
+  return data.map((r) => ({
+    id: r.id,
+    group_id: r.group_id,
+    user_id: r.user_id,
+    username: r.profiles?.username ?? '（未知）',
+    created_at: r.created_at,
+  }))
+}
+
+/** 群組最近沖煮動態（brew_details 已含沖煮人與豆名；RLS 限成員可見）。 */
+export async function listGroupBrews(groupId: string, limit = 10) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('brew_details')
+    .select('id, brewed_at, overall, name_batch, roaster, brewer_username')
+    .eq('group_id', groupId)
+    .order('brewed_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw new Error(`讀取群組沖煮失敗：${error.message}`)
+  return data
 }
 
 // ============ FR-10.9b 群組共用器材（成員提案、建立者核可） ============

@@ -3,44 +3,25 @@ import { AccountSection } from '@/components/settings/account-section'
 import { EquipmentManager } from '@/components/settings/equipment-manager'
 import { ExportSection } from '@/components/settings/export-section'
 import { GrinderManager } from '@/components/settings/grinder-manager'
-import { GroupManager } from '@/components/settings/group-manager'
 import { TagManager } from '@/components/settings/tag-manager'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
-import { listGroupGear, listMyGroups } from '@/lib/queries/groups'
-import {
-  listGroupTags,
-  listMySuggestions,
-  listMyTags,
-  listPendingSuggestions,
-} from '@/lib/queries/tags'
+import { listMySuggestions, listMyTags } from '@/lib/queries/tags'
 
 export const metadata: Metadata = { title: '設定' }
 
-// P10：帳號 / 群組（FR-10）/ 磨豆機 / 我的器材 / 我的標籤 / 匯出
+// P10：帳號 / 磨豆機 / 我的器材 / 我的標籤 / 匯出（皆為個人；群組管理在「群組」頁）
 export default async function SettingsPage() {
-  const [
-    profile,
-    grinders,
-    equipment,
-    myTags,
-    suggestions,
-    groups,
-    pendingSuggestions,
-    groupTags,
-    groupGear,
-  ] = await Promise.all([
-    getCurrentProfile(),
-    listGrinders({ personalOnly: true }),
-    listEquipment({ personalOnly: true }),
-    listMyTags(),
-    listMySuggestions(),
-    listMyGroups(),
-    listPendingSuggestions(),
-    listGroupTags(),
-    listGroupGear(),
-  ])
+  const [profile, grinders, equipment, myTags, suggestions] = await Promise.all(
+    [
+      getCurrentProfile(),
+      listGrinders({ personalOnly: true }),
+      listEquipment({ personalOnly: true }),
+      listMyTags(),
+      listMySuggestions(),
+    ],
+  )
 
   const pickEquipment = (kind: 'dripper' | 'filter' | 'kettle') =>
     equipment[kind].map((e) => ({ id: e.id, name: e.name }))
@@ -51,13 +32,6 @@ export default async function SettingsPage() {
       <AccountSection
         username={profile?.username ?? ''}
         email={profile?.email ?? null}
-      />
-      <GroupManager
-        groups={groups}
-        myUserId={profile?.id ?? ''}
-        pendingSuggestions={pendingSuggestions}
-        groupTags={groupTags}
-        groupGear={groupGear}
       />
       <GrinderManager grinders={grinders} />
       <EquipmentManager

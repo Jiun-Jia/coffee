@@ -204,7 +204,7 @@ export function GrinderManager({ grinders }: { grinders: GrinderWithCount[] }) {
       <CardHeader>
         <CardTitle>磨豆機</CardTitle>
         <CardDescription>
-          沖煮紀錄的「刻度」會綁定磨豆機解讀；群組共用磨豆機請到上方「群組」卡片新增
+          沖煮紀錄的「刻度」會綁定磨豆機解讀；群組共用磨豆機請到「群組」頁新增
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">

@@ -182,7 +182,7 @@ export function EquipmentManager({
         <CardTitle>我的器材</CardTitle>
         <CardDescription>
           建立常用的濾杯 / 濾紙 /
-          手沖壺，沖煮時直接下拉選取；群組共用器材請到上方「群組」卡片新增
+          手沖壺，沖煮時直接下拉選取；群組共用器材請到「群組」頁新增
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

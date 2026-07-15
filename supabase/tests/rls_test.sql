@@ -522,6 +522,105 @@ begin
   end;
 end $$;
 
+-- ============================================================
+-- 5b) FR-10.10 入群審核：申請 → 建立者核可/退回
+-- ============================================================
+
+-- B 不能直接把自己塞進 group_members（必須走申請）
+do $$
+begin
+  begin
+    insert into public.group_members (group_id, user_id)
+    values ('60000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-00000000000b');
+    raise exception 'FAIL: B 不應能直接加入 group_members';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end $$;
+
+-- B 送出入群申請成功，且申請後看得到群組名稱（僅名稱，豆/沖煮仍不可見）
+insert into public.group_join_requests (id, group_id, user_id)
+values ('90000000-0000-0000-0000-000000000001',
+        '60000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-00000000000b');
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.groups
+  where id = '60000000-0000-0000-0000-000000000001';
+  if n <> 1 then raise exception 'FAIL: 申請人應看得到群組名稱'; end if;
+
+  select count(*) into n from public.beans;
+  if n <> 0 then raise exception 'FAIL: 申請中仍不應看到群組豆'; end if;
+end $$;
+
+reset role;
+
+-- C（成員但非建立者）看不到 B 的申請；也不能對自己已在的群組再申請
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.group_join_requests;
+  if n <> 0 then raise exception 'FAIL: 非建立者成員不應看到入群申請'; end if;
+
+  begin
+    insert into public.group_join_requests (group_id, user_id)
+    values ('60000000-0000-0000-0000-000000000001',
+            '00000000-0000-0000-0000-00000000000c');
+    raise exception 'FAIL: 已是成員不應能再申請';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end $$;
+
+reset role;
+
+-- A（建立者）看得到 B 的申請與其名稱，可退回（刪除）
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.group_join_requests
+  where id = '90000000-0000-0000-0000-000000000001';
+  if n <> 1 then raise exception 'FAIL: 建立者應看到入群申請'; end if;
+
+  select count(*) into n from public.profiles
+  where id = '00000000-0000-0000-0000-00000000000b';
+  if n <> 1 then raise exception 'FAIL: 建立者應能讀申請人名稱'; end if;
+
+  delete from public.group_join_requests
+  where id = '90000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 建立者應能退回入群申請'; end if;
+end $$;
+
+reset role;
+
+-- B 重新申請後可自行撤回
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated"}';
+
+insert into public.group_join_requests (id, group_id, user_id)
+values ('90000000-0000-0000-0000-000000000002',
+        '60000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-00000000000b');
+
+do $$
+declare n int;
+begin
+  delete from public.group_join_requests
+  where id = '90000000-0000-0000-0000-000000000002';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 申請人應能撤回自己的申請'; end if;
+end $$;
+
 reset role;
 
 -- A（建立者）可解散群組 → 群組豆回歸個人（set null）
