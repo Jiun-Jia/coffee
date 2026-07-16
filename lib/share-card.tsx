@@ -32,15 +32,25 @@ function stars(n: number | null): string {
   return '★'.repeat(n) + '☆'.repeat(Math.max(0, 5 - n))
 }
 
+/** 沖煮步驟列（垂直展開，2026-07-16 回饋：欄位對齊取代 · 分隔、手法必列） */
+type CardStep = {
+  label: string
+  time: string
+  water: string
+  note: string
+  /** 總時間列以主色強調 */
+  emphasis?: boolean
+}
+
 type CardModel = {
   kicker: string
-  /** 右上角小標（養豆天數，2026-07-16 回饋） */
+  /** 右上角小標（養豆天數） */
   corner?: string
   title: string
   subtitle: string
   chips: { label: string; value: string }[]
-  /** 注水時間軸：悶蒸 → 各分段（時間·累積水量）→ 總時間 */
-  pourLine?: string
+  /** 沖煮步驟：悶蒸 → 各分段（時間/累積水量/手法）→ 總時間 */
+  steps: CardStep[]
   starLine: string
   footer: string
 }
@@ -48,6 +58,7 @@ type CardModel = {
 type PourStep = {
   end_time_sec: number | null
   cumulative_water_g: number | null
+  note: string | null
 }
 
 /** 沖煮參數 chips（2026-07-16 回饋：粉量/水量分開、口徑直白） */
@@ -75,29 +86,58 @@ function brewChips(brew: {
   ].filter((c): c is { label: string; value: string } => Boolean(c))
 }
 
-/** 悶蒸→分段→總時間 的一行時間軸（最多列 8 段，超出以 … 帶過） */
-function pourTimeline(
+/** 手法截斷（卡面單行；完整內容在分享頁） */
+function truncateNote(note: string | null, max = 9): string {
+  if (!note) return ''
+  return note.length > max ? `${note.slice(0, max)}…` : note
+}
+
+/** 悶蒸 → 各分段 → 總時間 的垂直步驟（最多 5 段，超出以「還有 N 段」帶過） */
+function pourSteps(
   pours: PourStep[],
   bloomTimeSec: number | null,
   bloomWaterG: number | null,
   totalTimeSec: number | null,
-): string | undefined {
-  const parts: string[] = []
+): CardStep[] {
+  const steps: CardStep[] = []
   if (bloomTimeSec != null) {
-    parts.push(
-      `悶蒸 ${formatSecondsToMSS(bloomTimeSec)}${bloomWaterG != null ? `·${bloomWaterG}g` : ''}`,
-    )
+    steps.push({
+      label: '悶蒸',
+      time: formatSecondsToMSS(bloomTimeSec),
+      water: bloomWaterG != null ? `${bloomWaterG}g` : '',
+      note: '',
+    })
   }
-  for (const p of pours.slice(0, 8)) {
-    if (p.end_time_sec == null && p.cumulative_water_g == null) continue
-    const t = p.end_time_sec != null ? formatSecondsToMSS(p.end_time_sec) : ''
-    const w = p.cumulative_water_g != null ? `${p.cumulative_water_g}g` : ''
-    parts.push([t, w].filter(Boolean).join('·'))
+  const valid = pours.filter(
+    (p) => p.end_time_sec != null || p.cumulative_water_g != null || p.note,
+  )
+  const MAX_SEGMENTS = 5
+  valid.slice(0, MAX_SEGMENTS).forEach((p, i) => {
+    steps.push({
+      label: `第 ${i + 1} 段`,
+      time: p.end_time_sec != null ? formatSecondsToMSS(p.end_time_sec) : '—',
+      water: p.cumulative_water_g != null ? `${p.cumulative_water_g}g` : '',
+      note: truncateNote(p.note),
+    })
+  })
+  if (valid.length > MAX_SEGMENTS) {
+    steps.push({
+      label: '…',
+      time: '',
+      water: '',
+      note: `還有 ${valid.length - MAX_SEGMENTS} 段（見分享頁）`,
+    })
   }
-  if (pours.length > 8) parts.push('…')
-  if (totalTimeSec != null)
-    parts.push(`總時間 ${formatSecondsToMSS(totalTimeSec)}`)
-  return parts.length > 0 ? parts.join('  →  ') : undefined
+  if (totalTimeSec != null) {
+    steps.push({
+      label: '總時間',
+      time: formatSecondsToMSS(totalTimeSec),
+      water: '',
+      note: '',
+      emphasis: true,
+    })
+  }
+  return steps
 }
 
 /** 分享資料 → 卡面內容（brew＝配方卡；bean＝豆卡＝最佳一杯） */
@@ -119,7 +159,7 @@ export function toCardModel(shared: SharedData): CardModel {
         ? `${bean.roaster} · ${bean.origin} · ${ROAST_LEVEL_LABELS[bean.roast_level]}`
         : '',
       chips: brewChips(brew),
-      pourLine: pourTimeline(
+      steps: pourSteps(
         shared.pours,
         brew.bloom_time_sec,
         brew.bloom_water_g,
@@ -148,7 +188,7 @@ export function toCardModel(shared: SharedData): CardModel {
       title: bean.name_batch,
       subtitle: `${bean.roaster} · ${bean.origin} · ${ROAST_LEVEL_LABELS[bean.roast_level]}${bean.process ? ` · ${bean.process}` : ''}`,
       chips: brewChips(best),
-      pourLine: pourTimeline(
+      steps: pourSteps(
         best.pours,
         best.bloom_time_sec,
         best.bloom_water_g,
@@ -174,6 +214,7 @@ export function toCardModel(shared: SharedData): CardModel {
       bean.process && { label: '處理法', value: bean.process },
       { label: '烘焙日期', value: bean.roast_date },
     ].filter((c): c is { label: string; value: string } => Boolean(c)),
+    steps: [],
     starLine: '',
     footer: [
       bean.profiles?.username && `分享者 ${bean.profiles.username}`,
@@ -197,6 +238,7 @@ export function loadNotoSansTC(): Promise<Buffer | null> {
 
 /** 卡面 JSX（satori：所有多子元素容器都要 display:flex） */
 export function ShareCard({ model }: { model: CardModel }): ReactElement {
+  const hasSteps = model.steps.length > 0
   return (
     <div
       style={{
@@ -207,11 +249,12 @@ export function ShareCard({ model }: { model: CardModel }): ReactElement {
         justifyContent: 'space-between',
         backgroundColor: BG,
         color: INK,
-        padding: 64,
+        padding: 56,
         fontFamily: 'Noto Sans TC',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* 頁首：kicker＋右上角養豆 / 豆名 / 副標 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div
           style={{
             display: 'flex',
@@ -219,18 +262,18 @@ export function ShareCard({ model }: { model: CardModel }): ReactElement {
             alignItems: 'center',
           }}
         >
-          <div style={{ display: 'flex', fontSize: 28, color: ACCENT }}>
+          <div style={{ display: 'flex', fontSize: 27, color: ACCENT }}>
             {model.kicker}
           </div>
           {model.corner && (
             <div
               style={{
                 display: 'flex',
-                fontSize: 26,
+                fontSize: 24,
                 color: MUTED,
                 backgroundColor: PANEL,
                 borderRadius: 999,
-                padding: '10px 22px',
+                padding: '8px 20px',
               }}
             >
               {model.corner}
@@ -240,7 +283,7 @@ export function ShareCard({ model }: { model: CardModel }): ReactElement {
         <div
           style={{
             display: 'flex',
-            fontSize: 72,
+            fontSize: 62,
             fontWeight: 700,
             lineHeight: 1.15,
           }}
@@ -248,63 +291,115 @@ export function ShareCard({ model }: { model: CardModel }): ReactElement {
           {model.title}
         </div>
         {model.subtitle && (
-          <div style={{ display: 'flex', fontSize: 32, color: MUTED }}>
+          <div style={{ display: 'flex', fontSize: 29, color: MUTED }}>
             {model.subtitle}
           </div>
         )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {model.chips.map((chip) => (
-            <div
-              key={chip.label}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 4,
-                backgroundColor: PANEL,
-                borderRadius: 16,
-                padding: '18px 28px',
-              }}
-            >
-              <div style={{ display: 'flex', fontSize: 22, color: MUTED }}>
-                {chip.label}
-              </div>
-              <div style={{ display: 'flex', fontSize: 36, fontWeight: 700 }}>
-                {chip.value}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {model.pourLine && (
-          <div
-            style={{
-              display: 'flex',
-              fontSize: 25,
-              color: MUTED,
-              lineHeight: 1.6,
-            }}
-          >
-            {model.pourLine}
-          </div>
-        )}
-
+      {/* 主體：左＝參數塊＋星等；右＝沖煮步驟（垂直，時間/水量/手法對齊欄） */}
+      <div style={{ display: 'flex', gap: 28, alignItems: 'stretch' }}>
         <div
           style={{
             display: 'flex',
+            flexDirection: 'column',
             justifyContent: 'space-between',
-            alignItems: 'center',
+            flexGrow: 1,
+            gap: 20,
           }}
         >
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            {model.chips.map((chip) => (
+              <div
+                key={chip.label}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  backgroundColor: PANEL,
+                  borderRadius: 16,
+                  padding: '16px 26px',
+                }}
+              >
+                <div style={{ display: 'flex', fontSize: 21, color: MUTED }}>
+                  {chip.label}
+                </div>
+                <div style={{ display: 'flex', fontSize: 34, fontWeight: 700 }}>
+                  {chip.value}
+                </div>
+              </div>
+            ))}
+          </div>
           <div style={{ display: 'flex', fontSize: 44, color: ACCENT }}>
             {model.starLine}
           </div>
-          <div style={{ display: 'flex', fontSize: 26, color: MUTED }}>
-            {model.footer}
-          </div>
         </div>
+
+        {hasSteps && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 7,
+              width: 470,
+              backgroundColor: PANEL,
+              borderRadius: 20,
+              padding: '20px 26px',
+            }}
+          >
+            <div style={{ display: 'flex', fontSize: 20, color: MUTED }}>
+              沖煮步驟
+            </div>
+            {model.steps.map((step, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  fontSize: 22,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    width: 92,
+                    color: step.emphasis ? ACCENT : MUTED,
+                    flexShrink: 0,
+                  }}
+                >
+                  {step.label}
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    width: 80,
+                    fontWeight: 700,
+                    color: step.emphasis ? ACCENT : INK,
+                    flexShrink: 0,
+                  }}
+                >
+                  {step.time}
+                </div>
+                <div style={{ display: 'flex', width: 82, flexShrink: 0 }}>
+                  {step.water}
+                </div>
+                <div style={{ display: 'flex', color: MUTED }}>{step.note}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 頁尾 */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          fontSize: 24,
+          color: MUTED,
+        }}
+      >
+        {model.footer}
       </div>
     </div>
   )
