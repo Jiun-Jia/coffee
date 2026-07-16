@@ -12,9 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import Image from 'next/image'
 import { beanInventory } from '@/lib/bean-inventory'
 import { calcRestDays } from '@/lib/format'
 import { listBeans, type BeanWithCount } from '@/lib/queries/beans'
+import { getPhotoUrls } from '@/lib/queries/photos'
 import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
 export const metadata: Metadata = { title: '豆子' }
@@ -54,6 +56,11 @@ export default async function BeansPage({
   const beans = showArchived
     ? allBeans
     : allBeans.filter((b) => b.archived_at === null)
+
+  // PHOTO-3 列表縮圖：批次簽名 URL（有照片的豆才產生）
+  const photoUrls = await getPhotoUrls(beans.map((b) => b.photo_path))
+  const thumb = (bean: BeanWithCount) =>
+    bean.photo_path ? (photoUrls.get(bean.photo_path) ?? null) : null
 
   return (
     <div className="space-y-6">
@@ -112,22 +119,30 @@ export default async function BeansPage({
                 {beans.map((bean) => (
                   <TableRow key={bean.id}>
                     <TableCell className="font-medium">
-                      <Link
-                        href={`/beans/${bean.id}`}
-                        className="hover:underline"
-                      >
-                        {bean.name_batch}
-                      </Link>
-                      {bean.group_name && (
-                        <Badge variant="outline" className="ml-2">
-                          {bean.group_name}
-                        </Badge>
-                      )}
-                      {bean.archived_at && (
-                        <Badge variant="outline" className="ml-2">
-                          已封存
-                        </Badge>
-                      )}
+                      <span className="flex items-center gap-2">
+                        {thumb(bean) && (
+                          <Image
+                            src={thumb(bean)!}
+                            alt=""
+                            width={32}
+                            height={32}
+                            unoptimized
+                            className="size-8 shrink-0 rounded object-cover"
+                          />
+                        )}
+                        <Link
+                          href={`/beans/${bean.id}`}
+                          className="hover:underline"
+                        >
+                          {bean.name_batch}
+                        </Link>
+                        {bean.group_name && (
+                          <Badge variant="outline">{bean.group_name}</Badge>
+                        )}
+                        {bean.archived_at && (
+                          <Badge variant="outline">已封存</Badge>
+                        )}
+                      </span>
                     </TableCell>
                     <TableCell>{bean.roaster}</TableCell>
                     <TableCell>{bean.origin}</TableCell>
@@ -159,18 +174,30 @@ export default async function BeansPage({
                 <Card>
                   <CardContent className="space-y-1 py-4">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">
-                        {bean.name_batch}
-                        {bean.group_name && (
-                          <Badge variant="outline" className="ml-1.5">
-                            {bean.group_name}
-                          </Badge>
+                      <span className="flex min-w-0 items-center gap-2 font-medium">
+                        {thumb(bean) && (
+                          <Image
+                            src={thumb(bean)!}
+                            alt=""
+                            width={36}
+                            height={36}
+                            unoptimized
+                            className="size-9 shrink-0 rounded object-cover"
+                          />
                         )}
-                        {bean.archived_at && (
-                          <Badge variant="outline" className="ml-1.5">
-                            已封存
-                          </Badge>
-                        )}
+                        <span className="min-w-0 truncate">
+                          {bean.name_batch}
+                          {bean.group_name && (
+                            <Badge variant="outline" className="ml-1.5">
+                              {bean.group_name}
+                            </Badge>
+                          )}
+                          {bean.archived_at && (
+                            <Badge variant="outline" className="ml-1.5">
+                              已封存
+                            </Badge>
+                          )}
+                        </span>
                       </span>
                       <Badge variant="secondary">
                         {ROAST_LEVEL_LABELS[bean.roast_level]}

@@ -18,6 +18,27 @@ export async function getPhotoUrl(
   return data.signedUrl
 }
 
+/** 批次簽名 URL（列表縮圖用）：path → signedUrl；失敗的路徑直接略過。 */
+export async function getPhotoUrls(
+  paths: (string | null)[],
+  expiresInSec = 3600,
+): Promise<Map<string, string>> {
+  const unique = [...new Set(paths.filter((p): p is string => p !== null))]
+  const map = new Map<string, string>()
+  if (unique.length === 0) return map
+
+  const admin = createAdminClient()
+  const { data } = await admin.storage
+    .from('photos')
+    .createSignedUrls(unique, expiresInSec)
+  for (const item of data ?? []) {
+    if (!item.error && item.path && item.signedUrl) {
+      map.set(item.path, item.signedUrl)
+    }
+  }
+  return map
+}
+
 /** 個人照片用量（設定頁顯示；免費層 1GB 需自我監控）。 */
 export async function getPhotoUsage(
   userId: string,

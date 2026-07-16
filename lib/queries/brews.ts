@@ -122,21 +122,6 @@ export async function getBrew(id: string): Promise<BrewDetailRow | null> {
   return data
 }
 
-/** brew_details view 沒有的附加欄位（照片/分享；RLS 同 brews 可見性） */
-export async function getBrewExtras(
-  id: string,
-): Promise<{ photo_path: string | null; public_slug: string | null } | null> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('brews')
-    .select('photo_path, public_slug')
-    .eq('id', id)
-    .maybeSingle()
-
-  if (error) throw new Error(`讀取沖煮附加欄位失敗：${error.message}`)
-  return data
-}
-
 export type BrewPour = {
   seq: number
   end_time_sec: number | null

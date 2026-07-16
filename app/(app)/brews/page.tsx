@@ -14,10 +14,12 @@ import {
 } from '@/components/ui/table'
 import { BrewFilters } from '@/components/brews/brew-filters'
 import { BrewsTabs } from '@/components/brews/brews-tabs'
+import Image from 'next/image'
 import { toBrewFilters, type BrewSearchParams } from '@/lib/brew-filters'
 import { formatRatio } from '@/lib/format'
 import { listBeans } from '@/lib/queries/beans'
 import { listBrews, listDistinctDrippers } from '@/lib/queries/brews'
+import { getPhotoUrls } from '@/lib/queries/photos'
 import { listFlavorTags } from '@/lib/queries/tags'
 import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
@@ -82,6 +84,10 @@ export default async function BrewsPage({
     listDistinctDrippers(),
     listFlavorTags(),
   ])
+  // PHOTO-3 列表縮圖：只為有成品照的列批次簽名
+  const photoUrls = await getPhotoUrls(brews.map((b) => b.photo_path ?? null))
+  const thumb = (path: string | null | undefined) =>
+    path ? (photoUrls.get(path) ?? null) : null
 
   const distinct = (values: (string | null)[]) =>
     [...new Set(values.filter(Boolean))] as string[]
@@ -167,12 +173,26 @@ export default async function BrewsPage({
                       </Link>
                     </TableCell>
                     <TableCell className="font-medium">
-                      {brew.name_batch}
-                      <span className="text-muted-foreground ml-1 text-xs">
-                        {brew.roaster}
-                        {brew.group_id && brew.brewer_username && (
-                          <> · {brew.brewer_username}</>
+                      <span className="flex items-center gap-2">
+                        {thumb(brew.photo_path) && (
+                          <Image
+                            src={thumb(brew.photo_path)!}
+                            alt=""
+                            width={32}
+                            height={32}
+                            unoptimized
+                            className="size-8 shrink-0 rounded object-cover"
+                          />
                         )}
+                        <span className="min-w-0">
+                          {brew.name_batch}
+                          <span className="text-muted-foreground ml-1 text-xs">
+                            {brew.roaster}
+                            {brew.group_id && brew.brewer_username && (
+                              <> · {brew.brewer_username}</>
+                            )}
+                          </span>
+                        </span>
                       </span>
                     </TableCell>
                     <TableCell>
@@ -209,8 +229,24 @@ export default async function BrewsPage({
                 <Card>
                   <CardContent className="space-y-1 py-4">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{brew.name_batch}</span>
-                      <span className="text-sm">{stars(brew.overall)}</span>
+                      <span className="flex min-w-0 items-center gap-2 font-medium">
+                        {thumb(brew.photo_path) && (
+                          <Image
+                            src={thumb(brew.photo_path)!}
+                            alt=""
+                            width={36}
+                            height={36}
+                            unoptimized
+                            className="size-9 shrink-0 rounded object-cover"
+                          />
+                        )}
+                        <span className="min-w-0 truncate">
+                          {brew.name_batch}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-sm">
+                        {stars(brew.overall)}
+                      </span>
                     </div>
                     <p className="text-muted-foreground text-sm">
                       {brew.group_id && brew.brewer_username && (

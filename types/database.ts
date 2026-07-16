@@ -813,8 +813,10 @@ export type Database = {
           notes: string | null
           origin: string | null
           overall: number | null
+          photo_path: string | null
           pour_notes: string | null
           process: string | null
+          public_slug: string | null
           ratio_include_ice: boolean | null
           ratio_value: number | null
           rest_days: number | null

@@ -1,8 +1,8 @@
-import { cache } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
+import { ImageDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -12,86 +12,19 @@ import {
   formatSecondsToMSS,
 } from '@/lib/format'
 import { getPhotoUrl } from '@/lib/queries/photos'
-import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  fetchShared,
+  type BeanShared,
+  type BrewShared,
+} from '@/lib/queries/share'
 import { BREW_TYPE_LABELS, ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
 /**
  * FR-9 公開分享頁（SHARE-2）：無需登入的唯讀「配方卡」。
- * - 以 service_role 按不可猜的 slug 查詢（anon RLS 維持空集合不動）；
- * - 欄位**白名單**：select 只列可公開欄位——自由備註、下次調整、
- *   價格/購入重量一律不出（FR-9.2）；
- * - 群組豆的分享頁只列「豆子建立者自己」的沖煮（§6 決議-4）；
- * - noindex：分享靠連結傳遞，不進搜尋引擎。
+ * 資料層與欄位白名單見 lib/queries/share.ts；
+ * 配方卡圖片（FR-9.4）由同層 opengraph-image.tsx 產生，
+ * 「下載配方卡」按鈕直接連到該圖。noindex：不進搜尋引擎。
  */
-
-const BREW_SHARE_COLUMNS = `
-  id, brewed_at, brew_type, dripper, filter, kettle, grind_setting,
-  water_temp, dose_g, water_g, ice_g, ratio_include_ice,
-  bloom_water_g, bloom_time_sec, total_time_sec, pour_notes,
-  aroma, acidity, sweetness, bitterness, body, balance, aftertaste, overall,
-  flavor_notes, photo_path, user_id,
-  beans(roaster, name_batch, origin, varietal, process, roast_level, roast_date),
-  grinders(name), profiles(username)
-`
-
-const BEAN_SHARE_COLUMNS = `
-  id, roaster, name_batch, origin, varietal, process, altitude, farm,
-  roast_level, roast_date, photo_path, user_id, profiles(username)
-`
-
-const fetchShared = cache(async (slug: string) => {
-  const admin = createAdminClient()
-
-  const { data: brew } = await admin
-    .from('brews')
-    .select(BREW_SHARE_COLUMNS)
-    .eq('public_slug', slug)
-    .maybeSingle()
-
-  if (brew) {
-    const [{ data: pours }, { data: tagRows }] = await Promise.all([
-      admin
-        .from('brew_pours')
-        .select('seq, end_time_sec, cumulative_water_g, note')
-        .eq('brew_id', brew.id)
-        .order('seq'),
-      admin
-        .from('brew_flavor_tags')
-        .select('flavor_tags(name)')
-        .eq('brew_id', brew.id),
-    ])
-    return {
-      type: 'brew' as const,
-      brew,
-      pours: pours ?? [],
-      tags: (tagRows ?? []).flatMap((r) =>
-        r.flavor_tags ? [r.flavor_tags.name] : [],
-      ),
-    }
-  }
-
-  const { data: bean } = await admin
-    .from('beans')
-    .select(BEAN_SHARE_COLUMNS)
-    .eq('public_slug', slug)
-    .maybeSingle()
-
-  if (bean) {
-    // §6 決議-4：只列建立者自己的沖煮（不外洩其他成員的紀錄）
-    const { data: brews } = await admin
-      .from('brews')
-      .select(
-        'id, brewed_at, water_temp, dose_g, water_g, ice_g, ratio_include_ice, grind_setting, overall, public_slug',
-      )
-      .eq('bean_id', bean.id)
-      .eq('user_id', bean.user_id)
-      .order('brewed_at', { ascending: false })
-      .limit(50)
-    return { type: 'bean' as const, bean, brews: brews ?? [] }
-  }
-
-  return null
-})
 
 export async function generateMetadata({
   params,
@@ -144,7 +77,18 @@ export default async function SharePage({
     <main className="mx-auto max-w-2xl space-y-6 p-4 py-8">
       <header className="flex items-center justify-between">
         <span className="text-lg font-semibold">☕ Brewlog</span>
-        <Badge variant="outline">唯讀分享</Badge>
+        <span className="flex items-center gap-2">
+          {/* FR-9.4 配方卡圖片：og-image 同源，可直接下載貼社群 */}
+          <a
+            href={`/share/${slug}/opengraph-image`}
+            download="brewlog-card.png"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+          >
+            <ImageDown className="size-4" />
+            下載配方卡
+          </a>
+          <Badge variant="outline">唯讀分享</Badge>
+        </span>
       </header>
 
       {shared.type === 'brew' ? (
@@ -165,10 +109,6 @@ export default async function SharePage({
   )
 }
 
-type SharedData = NonNullable<Awaited<ReturnType<typeof fetchShared>>>
-type BrewShared = Extract<SharedData, { type: 'brew' }>
-type BeanShared = Extract<SharedData, { type: 'bean' }>
-
 function BrewCard({
   brew,
   pours,
@@ -186,7 +126,12 @@ function BrewCard({
     : null
   const ratio =
     brew.dose_g != null && brew.water_g != null
-      ? calcRatioValue(brew.water_g, brew.dose_g, brew.ice_g, brew.ratio_include_ice)
+      ? calcRatioValue(
+          brew.water_g,
+          brew.dose_g,
+          brew.ice_g,
+          brew.ratio_include_ice,
+        )
       : null
 
   return (
@@ -244,10 +189,15 @@ function BrewCard({
             label="冰量"
             value={brew.ice_g != null ? `${brew.ice_g} g` : null}
           />
-          <Row label="水粉比" value={ratio != null ? formatRatio(ratio) : null} />
+          <Row
+            label="水粉比"
+            value={ratio != null ? formatRatio(ratio) : null}
+          />
           <Row
             label="悶蒸水量"
-            value={brew.bloom_water_g != null ? `${brew.bloom_water_g} g` : null}
+            value={
+              brew.bloom_water_g != null ? `${brew.bloom_water_g} g` : null
+            }
           />
           <Row
             label="悶蒸時間"

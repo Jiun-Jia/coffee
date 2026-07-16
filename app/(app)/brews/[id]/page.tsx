@@ -12,12 +12,7 @@ import { getCurrentProfile } from '@/lib/auth/profile'
 import { perCupCost } from '@/lib/bean-inventory'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBean } from '@/lib/queries/beans'
-import {
-  getBrew,
-  getBrewExtras,
-  getBrewPours,
-  getBrewTags,
-} from '@/lib/queries/brews'
+import { getBrew, getBrewPours, getBrewTags } from '@/lib/queries/brews'
 import { getPhotoUrl } from '@/lib/queries/photos'
 import { BREW_TYPE_LABELS, ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
@@ -64,13 +59,12 @@ export default async function BrewDetailPage({
   const { id } = await params
   const [brew, profile] = await Promise.all([getBrew(id), getCurrentProfile()])
   if (!brew) notFound()
-  const [tags, pours, bean, extras] = await Promise.all([
+  const [tags, pours, bean, photoUrl] = await Promise.all([
     getBrewTags(id),
     getBrewPours(id),
     brew.bean_id ? getBean(brew.bean_id) : null,
-    getBrewExtras(id),
+    getPhotoUrl(brew.photo_path ?? null),
   ])
-  const photoUrl = await getPhotoUrl(extras?.photo_path ?? null)
   // FR-10.5：他人的紀錄可看不可改（操作列僅本人顯示）
   const isMine = brew.user_id === profile?.id
   // FR-18.2 每杯成本（豆子要有價格＋購入重量才算）
@@ -126,14 +120,14 @@ export default async function BrewDetailPage({
         id={id}
         userId={profile?.id ?? ''}
         photoUrl={photoUrl}
-        photoPath={extras?.photo_path ?? null}
+        photoPath={brew.photo_path ?? null}
         canEdit={isMine}
         label="成品照"
       />
 
       {/* FR-9 公開分享（僅本人的沖煮可開） */}
       {isMine && (
-        <ShareToggle kind="brew" id={id} slug={extras?.public_slug ?? null} />
+        <ShareToggle kind="brew" id={id} slug={brew.public_slug ?? null} />
       )}
 
       <Section
