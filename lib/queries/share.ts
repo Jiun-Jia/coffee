@@ -82,19 +82,33 @@ export const fetchShared = cache(async (slug: string) => {
             (b.overall ?? 0) - (a.overall ?? 0) ||
             b.brewed_at.localeCompare(a.brewed_at),
         )[0] ?? null
-    const { data: bestPours } = best
-      ? await admin
-          .from('brew_pours')
-          .select('seq, end_time_sec, cumulative_water_g, note')
-          .eq('brew_id', best.id)
-          .order('seq')
-      : { data: [] }
+    const [{ data: bestPours }, { data: bestTagRows }] = best
+      ? await Promise.all([
+          admin
+            .from('brew_pours')
+            .select('seq, end_time_sec, cumulative_water_g, note')
+            .eq('brew_id', best.id)
+            .order('seq'),
+          admin
+            .from('brew_flavor_tags')
+            .select('flavor_tags(name)')
+            .eq('brew_id', best.id),
+        ])
+      : [{ data: [] }, { data: [] }]
 
     return {
       type: 'bean' as const,
       bean,
       brews: brews ?? [],
-      best: best ? { ...best, pours: bestPours ?? [] } : null,
+      best: best
+        ? {
+            ...best,
+            pours: bestPours ?? [],
+            tags: (bestTagRows ?? []).flatMap((r) =>
+              r.flavor_tags ? [r.flavor_tags.name] : [],
+            ),
+          }
+        : null,
     }
   }
 

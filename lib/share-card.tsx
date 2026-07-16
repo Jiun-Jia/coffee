@@ -51,6 +51,8 @@ type CardModel = {
   chips: { label: string; value: string }[]
   /** 沖煮步驟：悶蒸 → 各分段（時間/累積水量/手法）→ 總時間 */
   steps: CardStep[]
+  /** 該杯的風味標籤（最多 6 個＋「+N」） */
+  tags: string[]
   starLine: string
   footer: string
 }
@@ -165,6 +167,7 @@ export function toCardModel(shared: SharedData): CardModel {
         brew.bloom_water_g,
         brew.total_time_sec,
       ),
+      tags: shared.tags,
       starLine: stars(brew.overall),
       footer: [
         brew.profiles?.username && `沖煮人 ${brew.profiles.username}`,
@@ -194,6 +197,7 @@ export function toCardModel(shared: SharedData): CardModel {
         best.bloom_water_g,
         best.total_time_sec,
       ),
+      tags: best.tags,
       starLine: stars(best.overall),
       footer: [
         bean.profiles?.username && `分享者 ${bean.profiles.username}`,
@@ -215,6 +219,7 @@ export function toCardModel(shared: SharedData): CardModel {
       { label: '烘焙日期', value: bean.roast_date },
     ].filter((c): c is { label: string; value: string } => Boolean(c)),
     steps: [],
+    tags: [],
     starLine: '',
     footer: [
       bean.profiles?.username && `分享者 ${bean.profiles.username}`,
@@ -330,6 +335,37 @@ export function ShareCard({ model }: { model: CardModel }): ReactElement {
               </div>
             ))}
           </div>
+          {model.tags.length > 0 && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {model.tags.slice(0, 6).map((tag) => (
+                <div
+                  key={tag}
+                  style={{
+                    display: 'flex',
+                    fontSize: 22,
+                    color: INK,
+                    border: '1.5px solid #55463a',
+                    borderRadius: 999,
+                    padding: '7px 18px',
+                  }}
+                >
+                  {tag}
+                </div>
+              ))}
+              {model.tags.length > 6 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    fontSize: 22,
+                    color: MUTED,
+                    padding: '7px 4px',
+                  }}
+                >
+                  +{model.tags.length - 6}
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', fontSize: 44, color: ACCENT }}>
             {model.starLine}
           </div>
