@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  completedLaps,
   deviationLabel,
   elapsedSeconds,
   nextTarget,
@@ -66,6 +67,30 @@ describe('deviationLabel（實際 vs 目標偏差）', () => {
   })
   it('無目標 → null', () => {
     expect(deviationLabel(48, undefined)).toBeNull()
+  })
+})
+
+describe('completedLaps（專注模式的唯讀分段清單）', () => {
+  it('取前 lapCount 列、最新在前', () => {
+    const pours = [
+      pour({ end_time_sec: 45 }),
+      pour({ end_time_sec: 90 }),
+      pour({ end_time_sec: 135 }), // 尚未計時到的計畫段
+    ]
+    expect(completedLaps(pours, 2)).toEqual([
+      { seq: 2, pour: pours[1] },
+      { seq: 1, pour: pours[0] },
+    ])
+  })
+
+  it('lapCount 超過列數時以實際列數為準', () => {
+    const pours = [pour({ end_time_sec: 45 })]
+    expect(completedLaps(pours, 5)).toEqual([{ seq: 1, pour: pours[0] }])
+  })
+
+  it('lapCount 為 0 或負值 → 空清單', () => {
+    expect(completedLaps([pour()], 0)).toEqual([])
+    expect(completedLaps([pour()], -1)).toEqual([])
   })
 })
 

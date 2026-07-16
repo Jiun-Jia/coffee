@@ -60,3 +60,18 @@ export function deviationLabel(
 export function elapsedSeconds(startMs: number, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - startMs) / 1000))
 }
+
+/**
+ * 已完成的分段（FR-13.5 專注模式的唯讀清單），最新在前。
+ * 直接從表單 pours 推導（前 lapCount 列＝已計時的段）——
+ * 資料來源單一，撤銷分段時清單自動同步。
+ */
+export function completedLaps(
+  pours: PourFormValue[],
+  lapCount: number,
+): { seq: number; pour: PourFormValue }[] {
+  return pours
+    .slice(0, Math.min(Math.max(lapCount, 0), pours.length))
+    .map((pour, i) => ({ seq: i + 1, pour }))
+    .reverse()
+}
