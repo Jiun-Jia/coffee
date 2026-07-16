@@ -7,6 +7,8 @@ import type { TagStat } from '@/components/charts/tag-stats-chart'
 /**
  * FR-21 風味輪（WHL-1）：雙層環形——內圈＝風味輪分類、外圈＝標籤；
  * 角度＝出現次數、顏色深淺＝平均喜好度（淡＝低分、飽和＝高分）。
+ * 突出標示（2026-07-16 回饋）：次數前 5 的風味拉線直接標註、
+ * 圓心顯示最常出現的風味——不再需要逐段 hover 才知道重點。
  *
  * 色彩設計（dataviz 六檢查，2026-07-16 validate_palette 驗證）：
  * - 分類色**固定跟隨分類實體**（語意近似真實 SCA 風味輪），不隨篩選重排；
@@ -48,6 +50,16 @@ function shadeByOverall(base: string, avgOverall: number): string {
   return strength >= 100
     ? base
     : `color-mix(in oklab, ${base} ${strength}%, var(--background))`
+}
+
+/** 拉線標註（callout）收到的 Pie label props（只取用到的欄位） */
+type CalloutProps = {
+  cx: number
+  cy: number
+  midAngle: number
+  outerRadius: number
+  percent: number
+  payload: { id: string; name: string; count: number }
 }
 
 export function FlavorWheel({ stats }: { stats: TagStat[] }) {
@@ -95,9 +107,60 @@ export function FlavorWheel({ stats }: { stats: TagStat[] }) {
       fill: shadeByOverall(baseColor(s.catKey), s.avgOverall),
     }))
 
+  // 突出風味＝出現次數前 5 且份額 ≥ 3%：拉線直接標註（選擇性直接標籤，
+  // 全標會變毛球）；其餘靠 tooltip 與長條切換
+  const totalCount = tags.reduce((a, t) => a + t.count, 0)
+  const topIds = new Set(
+    [...tags]
+      .sort((a, b) => b.count - a.count)
+      .filter((t) => t.count / totalCount >= 0.03)
+      .slice(0, 5)
+      .map((t) => t.id),
+  )
+  // 圓心主角：最常出現的風味（看圖第一眼的結論）
+  const hero = [...tags].sort(
+    (a, b) => b.count - a.count || b.avgOverall - a.avgOverall,
+  )[0]
+
+  function renderCallout(props: unknown) {
+    const { cx, cy, midAngle, outerRadius, payload } = props as CalloutProps
+    if (!topIds.has(payload.id)) return null
+    const RADIAN = Math.PI / 180
+    const sin = Math.sin(-midAngle * RADIAN)
+    const cos = Math.cos(-midAngle * RADIAN)
+    const sx = cx + (outerRadius + 2) * cos
+    const sy = cy + (outerRadius + 2) * sin
+    const mx = cx + (outerRadius + 12) * cos
+    const my = cy + (outerRadius + 12) * sin
+    const ex = mx + (cos >= 0 ? 1 : -1) * 10
+    const anchor = cos >= 0 ? 'start' : 'end'
+    return (
+      <g>
+        <path
+          d={`M${sx},${sy}L${mx},${my}L${ex},${my}`}
+          stroke="var(--muted-foreground)"
+          strokeWidth={1}
+          fill="none"
+        />
+        <text
+          x={ex + (cos >= 0 ? 1 : -1) * 4}
+          y={my}
+          textAnchor={anchor}
+          dominantBaseline="central"
+          fontSize={11}
+          fill="var(--foreground)"
+        >
+          {payload.name}
+          <tspan fill="var(--muted-foreground)"> ×{payload.count}</tspan>
+        </text>
+      </g>
+    )
+  }
+
   return (
     <div className="space-y-3">
-      <ResponsiveContainer width="100%" height={280}>
+      <div className="relative">
+        <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Tooltip
             content={({ active, payload }) => {
@@ -121,15 +184,15 @@ export function FlavorWheel({ stats }: { stats: TagStat[] }) {
               )
             }}
           />
-          {/* 內圈：分類（全色） */}
+          {/* 內圈：分類（全色）；中央留洞放主角數字 */}
           <Pie
             data={categories}
             dataKey="count"
             nameKey="key"
             startAngle={90}
             endAngle={-270}
-            innerRadius="26%"
-            outerRadius="55%"
+            innerRadius="27%"
+            outerRadius="46%"
             cornerRadius={3}
             stroke="var(--background)"
             strokeWidth={2}
@@ -139,19 +202,21 @@ export function FlavorWheel({ stats }: { stats: TagStat[] }) {
               <Cell key={c.key} fill={c.fill} />
             ))}
           </Pie>
-          {/* 外圈：標籤（深淺＝平均喜好度） */}
+          {/* 外圈：標籤（深淺＝平均喜好度）；突出風味拉線標註 */}
           <Pie
             data={tags}
             dataKey="count"
             nameKey="name"
             startAngle={90}
             endAngle={-270}
-            innerRadius="60%"
-            outerRadius="88%"
+            innerRadius="50%"
+            outerRadius="70%"
             cornerRadius={3}
             stroke="var(--background)"
             strokeWidth={2}
             isAnimationActive={false}
+            labelLine={false}
+            label={renderCallout}
           >
             {tags.map((t) => (
               <Cell key={t.id} fill={t.fill} />
@@ -159,6 +224,20 @@ export function FlavorWheel({ stats }: { stats: TagStat[] }) {
           </Pie>
         </PieChart>
       </ResponsiveContainer>
+
+      {/* 圓心主角：最常出現的風味（pointer-events 穿透，不擋 hover） */}
+      {hero && (
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+          <span className="text-muted-foreground text-[10px]">最常出現</span>
+          <span className="max-w-20 truncate text-sm font-semibold">
+            {hero.name}
+          </span>
+          <span className="text-muted-foreground text-[10px]">
+            ×{hero.count}・★{hero.avgOverall}
+          </span>
+        </div>
+      )}
+      </div>
 
       {/* 分類圖例（身分不只靠顏色；hover 各段有 tooltip） */}
       <div className="flex flex-wrap gap-x-3 gap-y-1">
