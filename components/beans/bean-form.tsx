@@ -68,6 +68,8 @@ const EMPTY_VALUES = {
   farm: '',
   roast_level: 'medium_light' as const,
   roast_date: '',
+  purchase_weight_g: null,
+  price: null,
   notes: '',
 }
 
@@ -298,6 +300,60 @@ export function BeanForm({
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="purchase_weight_g"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>購入重量（g）</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step={1}
+                    inputMode="decimal"
+                    placeholder="例：200"
+                    value={field.value ?? ''}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === '' ? null : e.target.valueAsNumber,
+                      )
+                    }
+                  />
+                </FormControl>
+                <FormDescription>
+                  填了就會自動追蹤剩餘量（FR-15）
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="price"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>價格（NT$）</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step={1}
+                    inputMode="numeric"
+                    placeholder="例：450"
+                    value={field.value ?? ''}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === '' ? null : e.target.valueAsNumber,
+                      )
+                    }
+                  />
+                </FormControl>
+                <FormDescription>
+                  搭配購入重量可算每杯成本（FR-18）
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

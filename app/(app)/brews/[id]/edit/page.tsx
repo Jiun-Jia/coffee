@@ -43,13 +43,16 @@ export default async function EditBrewPage({
           brewTags.map((t) => t.id),
           brewPours,
         )}
-        beans={beans.map((b) => ({
-          id: b.id,
-          name_batch: b.name_batch,
-          roaster: b.roaster,
-          roast_date: b.roast_date,
-          group_id: b.group_id,
-        }))}
+        beans={beans
+          // FR-15.3：封存豆退出下拉；本筆沖煮既有的豆保留（可續存）
+          .filter((b) => b.archived_at === null || b.id === brew.bean_id)
+          .map((b) => ({
+            id: b.id,
+            name_batch: b.name_batch,
+            roaster: b.roaster,
+            roast_date: b.roast_date,
+            group_id: b.group_id,
+          }))}
         grinders={grinders.map((g) => ({
           id: g.id,
           name: g.name,

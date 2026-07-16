@@ -13,9 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ArchiveBeanButton } from '@/components/beans/archive-bean-button'
 import { DeleteBeanDialog } from '@/components/beans/delete-bean-dialog'
 import { RestDaysChart } from '@/components/charts/rest-days-chart'
 import { getCurrentProfile } from '@/lib/auth/profile'
+import { beanInventory } from '@/lib/bean-inventory'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBean, getBeanBrews } from '@/lib/queries/beans'
 import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
@@ -42,6 +44,14 @@ export default async function BeanDetailPage({
     null,
   )
 
+  // FR-15.2 庫存（未填購入重量 → null 不顯示）
+  const inventory = beanInventory(
+    bean.purchase_weight_g,
+    bean.total_dose_g,
+    bean.avg_dose_g,
+  )
+  const archived = bean.archived_at !== null
+
   const meta = [
     { label: '產地', value: bean.origin },
     { label: '品種', value: bean.varietal },
@@ -49,6 +59,22 @@ export default async function BeanDetailPage({
     { label: '海拔', value: bean.altitude },
     { label: '莊園 / 處理廠', value: bean.farm },
     { label: '烘焙日期', value: bean.roast_date },
+    {
+      label: '購入重量',
+      value:
+        bean.purchase_weight_g != null ? `${bean.purchase_weight_g} g` : null,
+    },
+    { label: '價格', value: bean.price != null ? `NT$ ${bean.price}` : null },
+    {
+      label: '剩餘',
+      value: inventory
+        ? `約 ${Math.max(0, inventory.remainingG)} g${
+            inventory.estCupsLeft != null
+              ? `（還能沖約 ${inventory.estCupsLeft} 杯）`
+              : ''
+          }`
+        : null,
+    },
   ].filter((m) => m.value)
 
   return (
@@ -63,11 +89,17 @@ export default async function BeanDetailPage({
             {bean.group_name && (
               <Badge variant="outline">{bean.group_name}</Badge>
             )}
+            {archived && <Badge variant="outline">已封存</Badge>}
           </div>
           <p className="text-muted-foreground text-sm">{bean.roaster}</p>
         </div>
         {isCreator && (
           <div className="flex gap-2">
+            <ArchiveBeanButton
+              beanId={bean.id}
+              beanName={bean.name_batch}
+              archived={archived}
+            />
             <Button asChild variant="outline" size="sm">
               <Link href={`/beans/${bean.id}/edit`}>
                 <Pencil className="size-4" />
@@ -78,6 +110,15 @@ export default async function BeanDetailPage({
           </div>
         )}
       </div>
+
+      {/* FR-15.4：剩餘 ≤ 0 建議封存（不自動封存）；不足一杯先提醒 */}
+      {!archived && inventory?.lowStock && (
+        <p className="text-muted-foreground rounded-md border border-dashed px-3 py-2 text-sm">
+          {inventory.depleted
+            ? '這包豆帳面上已用完——喝完了就封存吧，沖煮下拉會清爽一點（歷史紀錄不受影響）。'
+            : '剩餘量已不足一杯，快喝完了。'}
+        </p>
+      )}
 
       <Card>
         <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 py-4 text-sm sm:grid-cols-3">
@@ -101,12 +142,14 @@ export default async function BeanDetailPage({
           <h2 className="text-lg font-medium">
             這包豆的沖煮（{brews.length} 筆）
           </h2>
-          <Button asChild size="sm">
-            <Link href={`/brews/new?beanId=${bean.id}`}>
-              <Plus className="size-4" />
-              用這包沖煮
-            </Link>
-          </Button>
+          {!archived && (
+            <Button asChild size="sm">
+              <Link href={`/brews/new?beanId=${bean.id}`}>
+                <Plus className="size-4" />
+                用這包沖煮
+              </Link>
+            </Button>
+          )}
         </div>
 
         {brews.filter((b) => b.rest_days != null && b.overall != null)

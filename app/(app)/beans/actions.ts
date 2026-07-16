@@ -94,6 +94,31 @@ export async function deleteBean(
   return { ok: true }
 }
 
+/**
+ * FR-15.3 封存/解除封存（僅豆子建立者，RLS 的 update 政策把關）。
+ * 封存豆退出沖煮下拉與 Dashboard 在養統計；歷史沖煮與分析不受影響。
+ */
+export async function setBeanArchived(
+  id: string,
+  archived: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('beans')
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq('id', id)
+    .select('id')
+
+  if (error) return { ok: false, error: `操作失敗：${error.message}` }
+  if (!data.length) return { ok: false, error: '找不到這包豆子或沒有權限' }
+
+  revalidatePath('/beans')
+  revalidatePath(`/beans/${id}`)
+  revalidatePath('/dashboard')
+  revalidatePath('/groups', 'layout')
+  return { ok: true }
+}
+
 /** BEAN-6：開啟刪除對話框時即時查連帶沖煮筆數（不用列表快取值）。 */
 export async function countBeanBrews(beanId: string): Promise<number> {
   const supabase = await createClient()

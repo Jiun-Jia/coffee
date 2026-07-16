@@ -38,6 +38,7 @@ export type Database = {
         Row: {
           agtron: number | null
           altitude: string | null
+          archived_at: string | null
           created_at: string
           farm: string | null
           group_id: string | null
@@ -45,7 +46,9 @@ export type Database = {
           name_batch: string
           notes: string | null
           origin: string
+          price: number | null
           process: string | null
+          purchase_weight_g: number | null
           roast_date: string
           roast_level: Database["public"]["Enums"]["roast_level"]
           roaster: string
@@ -56,6 +59,7 @@ export type Database = {
         Insert: {
           agtron?: number | null
           altitude?: string | null
+          archived_at?: string | null
           created_at?: string
           farm?: string | null
           group_id?: string | null
@@ -63,7 +67,9 @@ export type Database = {
           name_batch: string
           notes?: string | null
           origin: string
+          price?: number | null
           process?: string | null
+          purchase_weight_g?: number | null
           roast_date: string
           roast_level: Database["public"]["Enums"]["roast_level"]
           roaster: string
@@ -74,6 +80,7 @@ export type Database = {
         Update: {
           agtron?: number | null
           altitude?: string | null
+          archived_at?: string | null
           created_at?: string
           farm?: string | null
           group_id?: string | null
@@ -81,7 +88,9 @@ export type Database = {
           name_batch?: string
           notes?: string | null
           origin?: string
+          price?: number | null
           process?: string | null
+          purchase_weight_g?: number | null
           roast_date?: string
           roast_level?: Database["public"]["Enums"]["roast_level"]
           roaster?: string
@@ -745,6 +754,23 @@ export type Database = {
       }
     }
     Views: {
+      bean_usage: {
+        Row: {
+          avg_dose_g: number | null
+          bean_id: string | null
+          brew_count: number | null
+          total_dose_g: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brews_bean_id_fkey"
+            columns: ["bean_id"]
+            isOneToOne: false
+            referencedRelation: "beans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brew_details: {
         Row: {
           acidity: number | null

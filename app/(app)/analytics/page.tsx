@@ -7,13 +7,14 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { RadarPicker } from '@/components/analytics/radar-picker'
+import { TagStatsView } from '@/components/analytics/tag-stats-view'
 import { BrewFilters } from '@/components/brews/brew-filters'
+import { CostChart } from '@/components/charts/cost-chart'
 import { RestDaysChart } from '@/components/charts/rest-days-chart'
-import { TagStatsChart } from '@/components/charts/tag-stats-chart'
 import { VariableScatter } from '@/components/charts/variable-scatter'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { toBrewFilters, type BrewSearchParams } from '@/lib/brew-filters'
-import { fetchTagStats } from '@/lib/queries/analytics'
+import { fetchCostStats, fetchTagStats } from '@/lib/queries/analytics'
 import { listBeans } from '@/lib/queries/beans'
 import { listBrews, listDistinctDrippers } from '@/lib/queries/brews'
 import { listGrinders } from '@/lib/queries/grinders'
@@ -47,7 +48,13 @@ export default async function AnalyticsPage({
     sp.scope === 'all'
       ? visibleBrews
       : visibleBrews.filter((b) => b.user_id === profile?.id)
-  const tagStats = await fetchTagStats(brews)
+  const [tagStats, costStats] = await Promise.all([
+    fetchTagStats(brews),
+    // FR-18.4：消費統計恆為個人口徑（不隨 scope 切換）
+    profile
+      ? fetchCostStats(profile.id)
+      : { monthly: [], avgCupCost: null, cupCount: 0 },
+  ])
 
   const grinderName = new Map(grinders.map((g) => [g.id, g.name]))
   const scored = brews.filter((b) => b.overall != null)
@@ -146,11 +153,11 @@ export default async function AnalyticsPage({
           <CardHeader>
             <CardTitle className="text-base">風味標籤統計</CardTitle>
             <CardDescription>
-              各標籤出現次數與平均喜好度，前 15 名（A4）
+              風味輪：內圈分類、外圈標籤；角度＝次數、深淺＝平均喜好度（A4/FR-21）
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <TagStatsChart stats={tagStats} />
+            <TagStatsView stats={tagStats} />
           </CardContent>
         </Card>
 
@@ -163,6 +170,29 @@ export default async function AnalyticsPage({
           </CardHeader>
           <CardContent>
             <RadarPicker options={radarOptions} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">消費統計</CardTitle>
+            <CardDescription>
+              每月豆子花費（依登錄月，近 12 個月）；只計自己買的豆與自己的沖煮（FR-18）
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {costStats.avgCupCost != null && (
+              <p className="text-sm">
+                <span className="text-muted-foreground">平均每杯成本：</span>
+                <span className="font-medium">
+                  ≈ NT$ {costStats.avgCupCost}
+                </span>
+                <span className="text-muted-foreground">
+                  （{costStats.cupCount} 杯可計）
+                </span>
+              </p>
+            )}
+            <CostChart monthly={costStats.monthly} />
           </CardContent>
         </Card>
       </div>

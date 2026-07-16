@@ -89,6 +89,12 @@ export default async function NewBrewPage({
   // 從豆子詳情「用這包沖煮」進來時預選（僅接受存在的豆子）
   const preselect = beans.some((b) => b.id === beanId) ? beanId : undefined
 
+  // FR-15.3：封存豆退出下拉；被複製來源/預選明確指到的豆保留
+  const referencedBeanId = copyDefaults?.bean_id || preselect
+  const visibleBeans = beans.filter(
+    (b) => b.archived_at === null || b.id === referencedBeanId,
+  )
+
   // FR-14.6 配方分區＋豆歸屬過濾：個人配方恆列；群組配方僅在
   // 「未選豆」或「沖該群組豆」時列出（群組配方僅可用於群組豆）
   const preselectBean = beans.find((b) => b.id === preselect)
@@ -159,7 +165,7 @@ export default async function NewBrewPage({
         // key：同路由換 searchParams（複製上一杯/載入配方）時強制重掛，
         // 否則 useForm 的 defaultValues 只在首次 mount 生效、帶不進新值
         key={copyFrom ?? recipeId ?? preselect ?? 'new'}
-        beans={beans.map((b) => ({
+        beans={visibleBeans.map((b) => ({
           id: b.id,
           name_batch: b.name_batch,
           roaster: b.roaster,

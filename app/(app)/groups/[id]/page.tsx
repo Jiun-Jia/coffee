@@ -68,7 +68,10 @@ export default async function GroupDetailPage({
   const group = groups.find((g) => g.id === id)
   if (!group) notFound()
 
-  const groupBeans = beans.filter((b) => b.group_id === id)
+  // 封存的群組豆退出列表（FR-15.3；歷史沖煮與排行不受影響，於豆子列表可切換檢視）
+  const groupBeans = beans.filter(
+    (b) => b.group_id === id && b.archived_at === null,
+  )
   const recentBrews = groupBrews.slice(0, 10)
 
   // 每支豆的「誰沖得最好」：各成員在該豆的最高整體評分，由高到低取前 3

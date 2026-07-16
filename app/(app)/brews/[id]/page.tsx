@@ -7,7 +7,9 @@ import { BrewActions } from '@/components/brews/brew-actions'
 import { SaveRecipeDialog } from '@/components/brews/save-recipe-dialog'
 import { SensoryRadar } from '@/components/charts/sensory-radar'
 import { getCurrentProfile } from '@/lib/auth/profile'
+import { perCupCost } from '@/lib/bean-inventory'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
+import { getBean } from '@/lib/queries/beans'
 import { getBrew, getBrewPours, getBrewTags } from '@/lib/queries/brews'
 import { BREW_TYPE_LABELS, ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
@@ -54,9 +56,19 @@ export default async function BrewDetailPage({
   const { id } = await params
   const [brew, profile] = await Promise.all([getBrew(id), getCurrentProfile()])
   if (!brew) notFound()
-  const [tags, pours] = await Promise.all([getBrewTags(id), getBrewPours(id)])
+  const [tags, pours, bean] = await Promise.all([
+    getBrewTags(id),
+    getBrewPours(id),
+    brew.bean_id ? getBean(brew.bean_id) : null,
+  ])
   // FR-10.5：他人的紀錄可看不可改（操作列僅本人顯示）
   const isMine = brew.user_id === profile?.id
+  // FR-18.2 每杯成本（豆子要有價格＋購入重量才算）
+  const cupCost = perCupCost(
+    bean?.price ?? null,
+    bean?.purchase_weight_g ?? null,
+    brew.dose_g,
+  )
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -146,6 +158,10 @@ export default async function BrewDetailPage({
               brew.total_time_sec != null
                 ? formatSecondsToMSS(brew.total_time_sec)
                 : null,
+          },
+          {
+            label: '每杯成本',
+            value: cupCost != null ? `≈ NT$ ${cupCost}` : null,
           },
         ]}
       />

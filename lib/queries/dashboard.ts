@@ -50,10 +50,12 @@ export async function fetchDashboardStats(uid: string): Promise<DashboardStats> 
     }
   }
 
-  // 在養豆子：烘焙日在 60 天內（仍在賞味窗口的粗略定義）
+  // 在養豆子：烘焙日在 60 天內（仍在賞味窗口的粗略定義）；封存豆不計（FR-15.3）
   const cutoff60 = new Date(Date.now() - 60 * 86_400_000)
   const restingBeans = beans.filter(
-    (b) => new Date(`${b.roast_date}T00:00:00+08:00`) >= cutoff60,
+    (b) =>
+      b.archived_at === null &&
+      new Date(`${b.roast_date}T00:00:00+08:00`) >= cutoff60,
   ).length
 
   return {

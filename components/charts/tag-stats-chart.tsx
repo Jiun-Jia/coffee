@@ -14,6 +14,7 @@ import { ChartTooltipFrame } from '@/components/charts/chart-tooltip'
 export type TagStat = {
   id: string
   name: string
+  category: string | null
   count: number
   avgOverall: number
 }
@@ -21,6 +22,7 @@ export type TagStat = {
 /**
  * A4 風味標籤統計：橫向長條（長度＝出現次數），
  * 平均喜好度以 text token 直接標示於條末（單一量值、單一軸）。
+ * 只取前 15 名（整體分佈交給風味輪檢視）。
  */
 export function TagStatsChart({ stats }: { stats: TagStat[] }) {
   if (stats.length === 0) {
@@ -31,7 +33,7 @@ export function TagStatsChart({ stats }: { stats: TagStat[] }) {
     )
   }
 
-  const data = stats.map((s) => ({
+  const data = stats.slice(0, 15).map((s) => ({
     ...s,
     endLabel: `${s.count} 次 · ★${s.avgOverall}`,
   }))

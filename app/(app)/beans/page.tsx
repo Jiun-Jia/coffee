@@ -12,8 +12,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { beanInventory } from '@/lib/bean-inventory'
 import { calcRestDays } from '@/lib/format'
-import { listBeans } from '@/lib/queries/beans'
+import { listBeans, type BeanWithCount } from '@/lib/queries/beans'
 import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
 export const metadata: Metadata = { title: '豆子' }
@@ -26,19 +27,53 @@ function restDaysLabel(roastDate: string): string {
   return `${days} 天`
 }
 
-export default async function BeansPage() {
-  const beans = await listBeans()
+/** FR-15.2 列表的剩餘量顯示（未填購入重量 → '—'） */
+function remainingLabel(bean: BeanWithCount): string {
+  const inv = beanInventory(
+    bean.purchase_weight_g,
+    bean.total_dose_g,
+    bean.avg_dose_g,
+  )
+  if (!inv) return '—'
+  return `${Math.max(0, inv.remainingG)} g`
+}
+
+export default async function BeansPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ archived?: string }>
+}) {
+  const [{ archived }, allBeans] = await Promise.all([
+    searchParams,
+    listBeans(),
+  ])
+
+  // FR-15.3：列表預設隱藏封存豆，可切換顯示
+  const showArchived = archived === '1'
+  const archivedCount = allBeans.filter((b) => b.archived_at !== null).length
+  const beans = showArchived
+    ? allBeans
+    : allBeans.filter((b) => b.archived_at === null)
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">豆子</h1>
-        <Button asChild>
-          <Link href="/beans/new">
-            <Plus className="size-4" />
-            新增豆子
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {archivedCount > 0 && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href={showArchived ? '/beans' : '/beans?archived=1'}>
+                {showArchived ? '隱藏已封存' : `含已封存（${archivedCount}）`}
+              </Link>
+            </Button>
+          )}
+          <Button asChild>
+            <Link href="/beans/new">
+              <Plus className="size-4" />
+              新增豆子
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {beans.length === 0 ? (
@@ -69,6 +104,7 @@ export default async function BeansPage() {
                   <TableHead>焙度</TableHead>
                   <TableHead>烘焙日期</TableHead>
                   <TableHead className="text-right">養豆</TableHead>
+                  <TableHead className="text-right">剩餘</TableHead>
                   <TableHead className="text-right">沖煮</TableHead>
                 </TableRow>
               </TableHeader>
@@ -87,6 +123,11 @@ export default async function BeansPage() {
                           {bean.group_name}
                         </Badge>
                       )}
+                      {bean.archived_at && (
+                        <Badge variant="outline" className="ml-2">
+                          已封存
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>{bean.roaster}</TableCell>
                     <TableCell>{bean.origin}</TableCell>
@@ -98,6 +139,9 @@ export default async function BeansPage() {
                     <TableCell>{bean.roast_date}</TableCell>
                     <TableCell className="text-right">
                       {restDaysLabel(bean.roast_date)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {remainingLabel(bean)}
                     </TableCell>
                     <TableCell className="text-right">
                       {bean.brew_count} 筆
@@ -122,6 +166,11 @@ export default async function BeansPage() {
                             {bean.group_name}
                           </Badge>
                         )}
+                        {bean.archived_at && (
+                          <Badge variant="outline" className="ml-1.5">
+                            已封存
+                          </Badge>
+                        )}
                       </span>
                       <Badge variant="secondary">
                         {ROAST_LEVEL_LABELS[bean.roast_level]}
@@ -131,8 +180,10 @@ export default async function BeansPage() {
                       {bean.roaster} · {bean.origin}
                     </p>
                     <p className="text-muted-foreground text-sm">
-                      養豆 {restDaysLabel(bean.roast_date)} ·{' '}
-                      {bean.brew_count} 筆沖煮
+                      養豆 {restDaysLabel(bean.roast_date)} · {bean.brew_count}{' '}
+                      筆沖煮
+                      {remainingLabel(bean) !== '—' &&
+                        ` · 剩 ${remainingLabel(bean)}`}
                     </p>
                   </CardContent>
                 </Card>

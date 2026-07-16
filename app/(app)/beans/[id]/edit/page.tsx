@@ -39,6 +39,8 @@ export default async function EditBeanPage({
           farm: bean.farm ?? '',
           roast_level: bean.roast_level,
           roast_date: bean.roast_date,
+          purchase_weight_g: bean.purchase_weight_g,
+          price: bean.price,
           notes: bean.notes ?? '',
         }}
       />
