@@ -1,6 +1,8 @@
 'use server'
 
+import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { beanSchema, type BeanInput } from '@/lib/validations/bean'
 
@@ -77,7 +79,7 @@ export async function deleteBean(
 
   const { data: bean } = await supabase
     .from('beans')
-    .select('id, name_batch')
+    .select('id, name_batch, photo_path')
     .eq('id', id)
     .maybeSingle()
 
@@ -86,12 +88,71 @@ export async function deleteBean(
     return { ok: false, error: '輸入的豆名不一致' }
   }
 
+  // PHOTO-3：連動清 Storage——豆子照片＋cascade 會刪掉的沖煮照片
+  const { data: brewPhotos } = await supabase
+    .from('brews')
+    .select('photo_path')
+    .eq('bean_id', id)
+    .not('photo_path', 'is', null)
+
   const { error } = await supabase.from('beans').delete().eq('id', id)
   if (error) return { ok: false, error: `刪除失敗：${error.message}` }
+
+  const orphanPaths = [
+    ...(bean.photo_path ? [bean.photo_path] : []),
+    ...(brewPhotos ?? []).flatMap((b) => (b.photo_path ? [b.photo_path] : [])),
+  ]
+  if (orphanPaths.length > 0) {
+    // best-effort：row 已刪成功，物件清不掉只留孤兒檔不擋操作
+    await createAdminClient().storage.from('photos').remove(orphanPaths)
+  }
 
   revalidatePath('/beans')
   revalidatePath('/brews')
   return { ok: true }
+}
+
+/** FR-22 設定豆袋照路徑（上傳/刪除後回寫；RLS 限建立者）。 */
+export async function setBeanPhoto(
+  id: string,
+  path: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('beans')
+    .update({ photo_path: path })
+    .eq('id', id)
+    .select('id')
+
+  if (error) return { ok: false, error: `照片更新失敗：${error.message}` }
+  if (!data.length) return { ok: false, error: '找不到這包豆子或沒有權限' }
+
+  revalidatePath(`/beans/${id}`)
+  revalidatePath('/beans')
+  return { ok: true }
+}
+
+/**
+ * FR-9 公開分享開關（豆子頁僅建立者可開，§6 決議-4；RLS 把關）。
+ * 開＝產生不可猜 slug、關＝清空（舊連結立即 404，FR-9.3）。
+ */
+export async function setBeanShared(
+  id: string,
+  shared: boolean,
+): Promise<{ ok: true; slug: string | null } | { ok: false; error: string }> {
+  const slug = shared ? randomBytes(12).toString('base64url') : null
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('beans')
+    .update({ public_slug: slug })
+    .eq('id', id)
+    .select('id')
+
+  if (error) return { ok: false, error: `分享設定失敗：${error.message}` }
+  if (!data.length) return { ok: false, error: '找不到這包豆子或沒有權限' }
+
+  revalidatePath(`/beans/${id}`)
+  return { ok: true, slug }
 }
 
 /**

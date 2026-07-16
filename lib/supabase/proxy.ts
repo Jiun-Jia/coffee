@@ -12,6 +12,7 @@ const PUBLIC_PATHS = [
   '/reset-password', // 需 recovery session，登入中也可訪問
   '/auth', // email 連結驗證入口（/auth/confirm）
   '/api/keepalive', // cron 保活（route 內以 CRON_SECRET 驗證）
+  '/share', // FR-9 公開分享頁（slug 不可猜；頁面內欄位白名單）
 ]
 
 function isPublicPath(pathname: string) {

@@ -7,6 +7,7 @@ import { TagManager } from '@/components/settings/tag-manager'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { listEquipment } from '@/lib/queries/equipment'
 import { listGrinders } from '@/lib/queries/grinders'
+import { getPhotoUsage } from '@/lib/queries/photos'
 import { listMySuggestions, listMyTags } from '@/lib/queries/tags'
 
 export const metadata: Metadata = { title: '設定' }
@@ -22,6 +23,7 @@ export default async function SettingsPage() {
       listMySuggestions(),
     ],
   )
+  const photoUsage = profile ? await getPhotoUsage(profile.id) : null
 
   const pickEquipment = (kind: 'dripper' | 'filter' | 'kettle') =>
     equipment[kind].map((e) => ({ id: e.id, name: e.name }))
@@ -55,6 +57,13 @@ export default async function SettingsPage() {
         }))}
       />
       <ExportSection />
+      {photoUsage && photoUsage.count > 0 && (
+        <p className="text-muted-foreground text-sm">
+          照片空間：{photoUsage.count} 張，約{' '}
+          {Math.round((photoUsage.bytes / 1024 / 1024) * 10) / 10} MB
+          （免費層共 1GB，FR-22.4）
+        </p>
+      )}
     </div>
   )
 }

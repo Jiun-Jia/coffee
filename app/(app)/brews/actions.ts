@@ -1,6 +1,8 @@
 'use server'
 
+import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { brewSchema, type BrewInput } from '@/lib/validations/brew'
 
@@ -143,6 +145,13 @@ export async function deleteBrew(
   id: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient()
+  // PHOTO-3：先取照片路徑，row 刪成功後連動清 Storage（best-effort）
+  const { data: existing } = await supabase
+    .from('brews')
+    .select('photo_path')
+    .eq('id', id)
+    .maybeSingle()
+
   const { error, count } = await supabase
     .from('brews')
     .delete({ count: 'exact' })
@@ -151,8 +160,51 @@ export async function deleteBrew(
   if (error) return { ok: false, error: `刪除失敗：${error.message}` }
   if (!count) return { ok: false, error: '找不到這筆紀錄或沒有權限' }
 
+  if (existing?.photo_path) {
+    await createAdminClient().storage.from('photos').remove([existing.photo_path])
+  }
+
   revalidatePath('/brews')
   revalidatePath('/beans')
   revalidatePath('/dashboard')
   return { ok: true }
+}
+
+/** FR-22 設定成品照路徑（上傳/刪除後回寫；RLS 限本人）。 */
+export async function setBrewPhoto(
+  id: string,
+  path: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('brews')
+    .update({ photo_path: path })
+    .eq('id', id)
+    .select('id')
+
+  if (error) return { ok: false, error: `照片更新失敗：${error.message}` }
+  if (!data.length) return { ok: false, error: '找不到這筆紀錄或沒有權限' }
+
+  revalidatePath(`/brews/${id}`)
+  return { ok: true }
+}
+
+/** FR-9 公開分享開關（僅本人的沖煮；RLS 把關）。開＝產生 slug、關＝作廢。 */
+export async function setBrewShared(
+  id: string,
+  shared: boolean,
+): Promise<{ ok: true; slug: string | null } | { ok: false; error: string }> {
+  const slug = shared ? randomBytes(12).toString('base64url') : null
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('brews')
+    .update({ public_slug: slug })
+    .eq('id', id)
+    .select('id')
+
+  if (error) return { ok: false, error: `分享設定失敗：${error.message}` }
+  if (!data.length) return { ok: false, error: '找不到這筆紀錄或沒有權限' }
+
+  revalidatePath(`/brews/${id}`)
+  return { ok: true, slug }
 }

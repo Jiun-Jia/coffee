@@ -16,10 +16,13 @@ import {
 import { ArchiveBeanButton } from '@/components/beans/archive-bean-button'
 import { DeleteBeanDialog } from '@/components/beans/delete-bean-dialog'
 import { RestDaysChart } from '@/components/charts/rest-days-chart'
+import { PhotoUploader } from '@/components/shared/photo-uploader'
+import { ShareToggle } from '@/components/shared/share-toggle'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { beanInventory } from '@/lib/bean-inventory'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBean, getBeanBrews } from '@/lib/queries/beans'
+import { getPhotoUrl } from '@/lib/queries/photos'
 import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
 export const metadata: Metadata = { title: '豆子詳情' }
@@ -36,7 +39,10 @@ export default async function BeanDetailPage({
   const isCreator = bean.user_id === profile?.id
   const isGroupBean = bean.group_id !== null
 
-  const brews = await getBeanBrews(id)
+  const [brews, photoUrl] = await Promise.all([
+    getBeanBrews(id),
+    getPhotoUrl(bean.photo_path),
+  ])
   // A1：標記最佳（overall 最高，同分取最新；列表已按 brewed_at desc 排序）
   const best = brews.reduce<(typeof brews)[number] | null>(
     (acc, b) =>
@@ -120,6 +126,17 @@ export default async function BeanDetailPage({
         </p>
       )}
 
+      {/* FR-22 豆袋照（建立者可上傳/替換/刪除；成員可看） */}
+      <PhotoUploader
+        kind="bean"
+        id={bean.id}
+        userId={profile?.id ?? ''}
+        photoUrl={photoUrl}
+        photoPath={bean.photo_path}
+        canEdit={isCreator}
+        label="豆袋照"
+      />
+
       <Card>
         <CardContent className="grid grid-cols-2 gap-x-6 gap-y-2 py-4 text-sm sm:grid-cols-3">
           {meta.map((m) => (
@@ -136,6 +153,11 @@ export default async function BeanDetailPage({
           )}
         </CardContent>
       </Card>
+
+      {/* FR-9 公開分享（豆子頁僅建立者可開；公開頁只列建立者自己的沖煮） */}
+      {isCreator && (
+        <ShareToggle kind="bean" id={bean.id} slug={bean.public_slug} />
+      )}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">

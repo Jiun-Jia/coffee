@@ -46,8 +46,10 @@ export type Database = {
           name_batch: string
           notes: string | null
           origin: string
+          photo_path: string | null
           price: number | null
           process: string | null
+          public_slug: string | null
           purchase_weight_g: number | null
           roast_date: string
           roast_level: Database["public"]["Enums"]["roast_level"]
@@ -67,8 +69,10 @@ export type Database = {
           name_batch: string
           notes?: string | null
           origin: string
+          photo_path?: string | null
           price?: number | null
           process?: string | null
+          public_slug?: string | null
           purchase_weight_g?: number | null
           roast_date: string
           roast_level: Database["public"]["Enums"]["roast_level"]
@@ -88,8 +92,10 @@ export type Database = {
           name_batch?: string
           notes?: string | null
           origin?: string
+          photo_path?: string | null
           price?: number | null
           process?: string | null
+          public_slug?: string | null
           purchase_weight_g?: number | null
           roast_date?: string
           roast_level?: Database["public"]["Enums"]["roast_level"]
@@ -220,7 +226,9 @@ export type Database = {
           next_adjustment: string | null
           notes: string | null
           overall: number
+          photo_path: string | null
           pour_notes: string | null
+          public_slug: string | null
           ratio_include_ice: boolean
           sweetness: number | null
           total_time_sec: number | null
@@ -254,7 +262,9 @@ export type Database = {
           next_adjustment?: string | null
           notes?: string | null
           overall: number
+          photo_path?: string | null
           pour_notes?: string | null
+          public_slug?: string | null
           ratio_include_ice?: boolean
           sweetness?: number | null
           total_time_sec?: number | null
@@ -288,7 +298,9 @@ export type Database = {
           next_adjustment?: string | null
           notes?: string | null
           overall?: number
+          photo_path?: string | null
           pour_notes?: string | null
+          public_slug?: string | null
           ratio_include_ice?: boolean
           sweetness?: number | null
           total_time_sec?: number | null

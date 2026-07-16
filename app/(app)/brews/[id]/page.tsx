@@ -6,11 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BrewActions } from '@/components/brews/brew-actions'
 import { SaveRecipeDialog } from '@/components/brews/save-recipe-dialog'
 import { SensoryRadar } from '@/components/charts/sensory-radar'
+import { PhotoUploader } from '@/components/shared/photo-uploader'
+import { ShareToggle } from '@/components/shared/share-toggle'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { perCupCost } from '@/lib/bean-inventory'
 import { formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBean } from '@/lib/queries/beans'
-import { getBrew, getBrewPours, getBrewTags } from '@/lib/queries/brews'
+import {
+  getBrew,
+  getBrewExtras,
+  getBrewPours,
+  getBrewTags,
+} from '@/lib/queries/brews'
+import { getPhotoUrl } from '@/lib/queries/photos'
 import { BREW_TYPE_LABELS, ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
 export const metadata: Metadata = { title: '沖煮詳情' }
@@ -56,11 +64,13 @@ export default async function BrewDetailPage({
   const { id } = await params
   const [brew, profile] = await Promise.all([getBrew(id), getCurrentProfile()])
   if (!brew) notFound()
-  const [tags, pours, bean] = await Promise.all([
+  const [tags, pours, bean, extras] = await Promise.all([
     getBrewTags(id),
     getBrewPours(id),
     brew.bean_id ? getBean(brew.bean_id) : null,
+    getBrewExtras(id),
   ])
+  const photoUrl = await getPhotoUrl(extras?.photo_path ?? null)
   // FR-10.5：他人的紀錄可看不可改（操作列僅本人顯示）
   const isMine = brew.user_id === profile?.id
   // FR-18.2 每杯成本（豆子要有價格＋購入重量才算）
@@ -109,6 +119,22 @@ export default async function BrewDetailPage({
           )}
         </p>
       </div>
+
+      {/* FR-22 成品照（本人可上傳/替換/刪除；群組成員可看） */}
+      <PhotoUploader
+        kind="brew"
+        id={id}
+        userId={profile?.id ?? ''}
+        photoUrl={photoUrl}
+        photoPath={extras?.photo_path ?? null}
+        canEdit={isMine}
+        label="成品照"
+      />
+
+      {/* FR-9 公開分享（僅本人的沖煮可開） */}
+      {isMine && (
+        <ShareToggle kind="brew" id={id} slug={extras?.public_slug ?? null} />
+      )}
 
       <Section
         title="沖煮參數"
