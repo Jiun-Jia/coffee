@@ -89,6 +89,28 @@ export default async function NewBrewPage({
   // 從豆子詳情「用這包沖煮」進來時預選（僅接受存在的豆子）
   const preselect = beans.some((b) => b.id === beanId) ? beanId : undefined
 
+  // FR-14.6 配方分區＋豆歸屬過濾：個人配方恆列；群組配方僅在
+  // 「未選豆」或「沖該群組豆」時列出（群組配方僅可用於群組豆）
+  const preselectBean = beans.find((b) => b.id === preselect)
+  const pickerSections = [
+    {
+      key: 'personal',
+      label: '個人配方',
+      recipes: recipes
+        .filter((r) => r.group_id === null)
+        .map((r) => ({ id: r.id, name: r.name })),
+    },
+    ...groups
+      .filter((g) => !preselectBean || preselectBean.group_id === g.id)
+      .map((g) => ({
+        key: g.id,
+        label: `群組：${g.name}`,
+        recipes: recipes
+          .filter((r) => r.group_id === g.id && r.status === 'approved')
+          .map((r) => ({ id: r.id, name: r.name })),
+      })),
+  ]
+
   // D13「複製上一杯」：已選豆子 → 該豆最近一筆；未選 → 最近一筆。
   // FR-10 後僅取「自己的」紀錄（複製朋友的參數請從其沖煮詳情頁操作）
   let copyLatestId: string | undefined
@@ -117,7 +139,7 @@ export default async function NewBrewPage({
         </div>
         <div className="flex items-center gap-2">
           <RecipePicker
-            recipes={recipes.map((r) => ({ id: r.id, name: r.name }))}
+            sections={pickerSections}
             currentId={loadedRecipeName ? recipeId : undefined}
             beanId={preselect}
           />

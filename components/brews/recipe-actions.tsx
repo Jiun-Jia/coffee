@@ -22,9 +22,12 @@ import { deleteRecipe } from '@/app/(app)/brews/recipes/actions'
 export function RecipeActions({
   recipeId,
   recipeName,
+  hideBrew = false,
 }: {
   recipeId: string
   recipeName: string
+  /** 列內已有沖煮入口時隱藏（群組配方列） */
+  hideBrew?: boolean
 }) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
@@ -43,12 +46,14 @@ export function RecipeActions({
 
   return (
     <div className="flex justify-end gap-1">
-      <Button asChild size="sm">
-        <Link href={`/brews/new?recipeId=${recipeId}`}>
-          <CupSoda className="size-4" />
-          沖煮
-        </Link>
-      </Button>
+      {!hideBrew && (
+        <Button asChild size="sm">
+          <Link href={`/brews/new?recipeId=${recipeId}`}>
+            <CupSoda className="size-4" />
+            沖煮
+          </Link>
+        </Button>
+      )}
       <Button asChild variant="outline" size="sm">
         <Link href={`/brews/recipes/${recipeId}/edit`}>
           <Pencil className="size-4" />

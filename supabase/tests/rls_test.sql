@@ -813,9 +813,125 @@ end $$;
 
 reset role;
 
+-- ============================================================
+-- FR-14.5 群組配方：推薦（pending）→ 管理者核可 → 全員可見；
+-- 解散群組退回推薦者個人配方（含撞名自動改名 trigger）
+-- ============================================================
+insert into public.groups (id, name, owner_id, invite_code)
+values ('61000000-0000-0000-0000-000000000001', '配方測試群',
+        '00000000-0000-0000-0000-00000000000a', 'RCPTEST9');
+-- 建立者也要有成員列（is_group_member 只查 group_members，同 app 建群行為）
+insert into public.group_members (group_id, user_id) values
+  ('61000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000a'),
+  ('61000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-00000000000c');
+
+-- C：建個人配方、推薦到群組（快照複製 pending）、不可自核
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
 do $$
 begin
-  raise notice '=== RLS 隔離驗證全數通過（含 FR-10 群組、FR-14 配方） ===';
+  insert into public.recipes (user_id, name, water_temp)
+  values ('00000000-0000-0000-0000-00000000000c', '手法X', 92);
+
+  insert into public.recipes (id, user_id, name, water_temp, group_id, status)
+  values ('70000000-0000-0000-0000-000000000001',
+          '00000000-0000-0000-0000-00000000000c', '手法X', 92,
+          '61000000-0000-0000-0000-000000000001', 'pending');
+end $$;
+
+-- C 不可自核（with check 拒絕成員把自己的 pending 改成 approved）
+do $$
+begin
+  begin
+    update public.recipes set status = 'approved'
+    where id = '70000000-0000-0000-0000-000000000001';
+    raise exception 'FAIL: 一般成員不應能自核群組配方';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end $$;
+
+reset role;
+
+-- B（非成員）：看不到該群組配方
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000b","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.recipes
+  where group_id = '61000000-0000-0000-0000-000000000001';
+  if n <> 0 then raise exception 'FAIL: 非成員應看到 0 筆群組配方，實際 %', n; end if;
+end $$;
+
+reset role;
+
+-- A（建立者）：看得到 pending、可核可
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.recipes
+  where group_id = '61000000-0000-0000-0000-000000000001' and status = 'pending';
+  if n <> 1 then raise exception 'FAIL: 管理者應看到 1 筆待審配方，實際 %', n; end if;
+
+  update public.recipes set status = 'approved'
+  where id = '70000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'FAIL: 建立者應能核可群組配方'; end if;
+end $$;
+
+reset role;
+
+-- C：可見已核可、不可改不可刪、可複製為個人配方
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000000c","role":"authenticated"}';
+
+do $$
+declare n int;
+begin
+  perform 1 from public.recipes
+  where id = '70000000-0000-0000-0000-000000000001' and status = 'approved';
+  if not found then raise exception 'FAIL: 成員應看得到已核可的群組配方'; end if;
+
+  update public.recipes set water_temp = 88
+  where id = '70000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: 成員不應能改已核可的群組配方'; end if;
+
+  delete from public.recipes
+  where id = '70000000-0000-0000-0000-000000000001';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'FAIL: 成員不應能刪已核可的群組配方'; end if;
+
+  -- FR-14.7 複製到我的配方
+  insert into public.recipes (user_id, name, water_temp)
+  values ('00000000-0000-0000-0000-00000000000c', '手法X（複製）', 92);
+end $$;
+
+reset role;
+
+-- 解散群組 → 群組配方退回推薦者 C 的個人配方；
+-- 與 C 既有個人配方「手法X」撞名 → trigger 自動改名「手法X（2）」
+delete from public.groups where id = '61000000-0000-0000-0000-000000000001';
+
+do $$
+begin
+  perform 1 from public.recipes
+  where user_id = '00000000-0000-0000-0000-00000000000c'
+    and group_id is null and status = 'approved' and name = '手法X（2）';
+  if not found then
+    raise exception 'FAIL: 解散後群組配方應退回 C 的個人配方並改名「手法X（2）」';
+  end if;
+end $$;
+
+do $$
+begin
+  raise notice '=== RLS 隔離驗證全數通過（含 FR-10 群組、FR-14 配方、FR-14.5 群組配方） ===';
 end $$;
 
 rollback;

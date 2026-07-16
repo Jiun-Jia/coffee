@@ -589,6 +589,7 @@ export type Database = {
           filter: string | null
           grind_setting: string | null
           grinder_id: string | null
+          group_id: string | null
           ice_g: number | null
           id: string
           kettle: string | null
@@ -598,6 +599,7 @@ export type Database = {
           pours: Json
           ratio_include_ice: boolean
           source_brew_id: string | null
+          status: string
           total_time_sec: number | null
           updated_at: string
           user_id: string
@@ -614,6 +616,7 @@ export type Database = {
           filter?: string | null
           grind_setting?: string | null
           grinder_id?: string | null
+          group_id?: string | null
           ice_g?: number | null
           id?: string
           kettle?: string | null
@@ -623,6 +626,7 @@ export type Database = {
           pours?: Json
           ratio_include_ice?: boolean
           source_brew_id?: string | null
+          status?: string
           total_time_sec?: number | null
           updated_at?: string
           user_id: string
@@ -639,6 +643,7 @@ export type Database = {
           filter?: string | null
           grind_setting?: string | null
           grinder_id?: string | null
+          group_id?: string | null
           ice_g?: number | null
           id?: string
           kettle?: string | null
@@ -648,6 +653,7 @@ export type Database = {
           pours?: Json
           ratio_include_ice?: boolean
           source_brew_id?: string | null
+          status?: string
           total_time_sec?: number | null
           updated_at?: string
           user_id?: string
@@ -660,6 +666,13 @@ export type Database = {
             columns: ["grinder_id"]
             isOneToOne: false
             referencedRelation: "grinders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recipes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
             referencedColumns: ["id"]
           },
           {

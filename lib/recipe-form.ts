@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { Database } from '@/types/database'
 import type { BrewFormValues, PourFormValue } from '@/lib/brew-form'
+// 相對路徑：vitest 未設 '@' alias（lib 內執行期互引一律相對，同 validations 慣例）
+import { calcRatioValue, formatRatio, formatSecondsToMSS } from './format'
 import type { RecipeInput } from '@/lib/validations/recipe'
 
 export type RecipeRow = Database['public']['Tables']['recipes']['Row']
@@ -106,4 +108,26 @@ export function recipeToBrewDefaults(
 /** 表單值 → server action 的 RecipeInput（受控元件已保證型別，cast 同 brew-form） */
 export function formValuesToRecipeInput(values: RecipeFormValues): RecipeInput {
   return values as unknown as RecipeInput
+}
+
+/** 一行式參數摘要：92°C · 15g / 225g（1:15）· 悶蒸 0:30 · 總 2:30（配方列表/群組頁共用） */
+export function recipeSummary(recipe: RecipeRow): string {
+  const parts: string[] = []
+  if (recipe.water_temp != null) parts.push(`${recipe.water_temp}°C`)
+  if (recipe.dose_g != null && recipe.water_g != null) {
+    const ratio = calcRatioValue(
+      recipe.water_g,
+      recipe.dose_g,
+      recipe.ice_g,
+      recipe.ratio_include_ice,
+    )
+    parts.push(
+      `${recipe.dose_g}g / ${recipe.water_g}g${ratio != null ? `（${formatRatio(ratio)}）` : ''}`,
+    )
+  }
+  if (recipe.bloom_time_sec != null)
+    parts.push(`悶蒸 ${formatSecondsToMSS(recipe.bloom_time_sec)}`)
+  if (recipe.total_time_sec != null)
+    parts.push(`總 ${formatSecondsToMSS(recipe.total_time_sec)}`)
+  return parts.join(' · ')
 }

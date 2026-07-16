@@ -18,6 +18,10 @@ import {
   MemberSection,
   TagSection,
 } from '@/components/groups/group-detail-sections'
+import {
+  GroupRecipeSection,
+  type GroupRecipeItem,
+} from '@/components/groups/group-recipe-section'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { listBeans } from '@/lib/queries/beans'
 import {
@@ -26,6 +30,8 @@ import {
   listGroupJoinRequests,
   listMyGroups,
 } from '@/lib/queries/groups'
+import { listGroupRecipes } from '@/lib/queries/recipes'
+import { recipeSummary } from '@/lib/recipe-form'
 import { listGroupTags, listPendingSuggestions } from '@/lib/queries/tags'
 
 export const metadata: Metadata = { title: '群組' }
@@ -37,17 +43,27 @@ export default async function GroupDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [profile, groups, gear, tags, pendingTags, joinRequests, beans, groupBrews] =
-    await Promise.all([
-      getCurrentProfile(),
-      listMyGroups(),
-      listGroupGear(),
-      listGroupTags(),
-      listPendingSuggestions(),
-      listGroupJoinRequests(),
-      listBeans(),
-      listGroupBrews(id),
-    ])
+  const [
+    profile,
+    groups,
+    gear,
+    tags,
+    pendingTags,
+    joinRequests,
+    beans,
+    groupBrews,
+    groupRecipes,
+  ] = await Promise.all([
+    getCurrentProfile(),
+    listMyGroups(),
+    listGroupGear(),
+    listGroupTags(),
+    listPendingSuggestions(),
+    listGroupJoinRequests(),
+    listBeans(),
+    listGroupBrews(id),
+    listGroupRecipes(id),
+  ])
 
   const group = groups.find((g) => g.id === id)
   if (!group) notFound()
@@ -174,6 +190,32 @@ export default async function GroupDetailPage({
           <GearSection
             group={group}
             gear={gear.filter((g) => g.group_id === id)}
+            myUserId={profile?.id ?? ''}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">群組配方</CardTitle>
+          <CardDescription>
+            成員自「沖煮 → 配方」推薦、管理者核可後全員沖群組豆可載入（FR-14.5）
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <GroupRecipeSection
+            recipes={groupRecipes.map(
+              (r): GroupRecipeItem => ({
+                id: r.id,
+                name: r.name,
+                summary: recipeSummary(r),
+                status: r.status === 'pending' ? 'pending' : 'approved',
+                user_id: r.user_id,
+                submitter: r.profiles?.username ?? '（未知）',
+              }),
+            )}
+            isManager={group.isManager}
+            isOwner={group.isOwner}
             myUserId={profile?.id ?? ''}
           />
         </CardContent>
