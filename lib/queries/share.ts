@@ -66,7 +66,7 @@ export const fetchShared = cache(async (slug: string) => {
     const { data: brews } = await admin
       .from('brews')
       .select(
-        'id, brewed_at, water_temp, dose_g, water_g, ice_g, ratio_include_ice, grind_setting, overall, public_slug',
+        'id, brewed_at, water_temp, dose_g, water_g, ice_g, ratio_include_ice, grind_setting, total_time_sec, overall, public_slug',
       )
       .eq('bean_id', bean.id)
       .eq('user_id', bean.user_id)

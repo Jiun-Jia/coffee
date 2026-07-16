@@ -1,7 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ReactElement } from 'react'
-import { calcRatioValue, formatRatio, formatSecondsToMSS } from '@/lib/format'
+import {
+  calcRatioValue,
+  calcRestDays,
+  formatRatio,
+  formatSecondsToMSS,
+} from '@/lib/format'
 import type { SharedData } from '@/lib/queries/share'
 import { BREW_TYPE_LABELS, ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
@@ -80,6 +85,57 @@ export function toCardModel(shared: SharedData): CardModel {
   }
 
   const { bean } = shared
+  // 豆卡的主角＝分享者的「最佳一杯」（2026-07-16 回饋：豆況資訊太薄，
+  // 拿到卡的人最想知道的是「這包怎麼沖最好喝」）
+  const best = [...shared.brews]
+    .filter((b) => b.overall != null)
+    .sort(
+      (a, b) =>
+        (b.overall ?? 0) - (a.overall ?? 0) ||
+        b.brewed_at.localeCompare(a.brewed_at),
+    )[0]
+
+  if (best) {
+    const ratio =
+      best.dose_g != null && best.water_g != null
+        ? calcRatioValue(
+            best.water_g,
+            best.dose_g,
+            best.ice_g,
+            best.ratio_include_ice,
+          )
+        : null
+    const restDays = calcRestDays(new Date(best.brewed_at), bean.roast_date)
+    const chips = [
+      best.water_temp != null && {
+        label: '水溫',
+        value: `${best.water_temp}°C`,
+      },
+      ratio != null && { label: '粉水比', value: formatRatio(ratio) },
+      { label: '粉量', value: `${best.dose_g}g / ${best.water_g}g` },
+      best.total_time_sec != null && {
+        label: '總時間',
+        value: formatSecondsToMSS(best.total_time_sec),
+      },
+      restDays != null &&
+        restDays >= 0 && { label: '養豆', value: `第 ${restDays} 天` },
+    ].filter((c): c is { label: string; value: string } => Boolean(c))
+    return {
+      kicker: 'Brewlog 豆子分享 · 我的最佳沖法',
+      title: bean.name_batch,
+      subtitle: `${bean.roaster} · ${bean.origin} · ${ROAST_LEVEL_LABELS[bean.roast_level]}${bean.process ? ` · ${bean.process}` : ''}`,
+      chips,
+      starLine: stars(best.overall),
+      footer: [
+        bean.profiles?.username && `分享者 ${bean.profiles.username}`,
+        `${shared.brews.length} 筆沖煮`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    }
+  }
+
+  // 還沒有沖煮紀錄：退回豆況卡
   return {
     kicker: 'Brewlog 豆子分享',
     title: bean.name_batch,
