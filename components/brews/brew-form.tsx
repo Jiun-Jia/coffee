@@ -650,7 +650,11 @@ export function BrewForm({
               pours={poursValues ?? []}
               bloomTargetSec={bloomTimeValue}
               onUpdatePour={(index, pour) => pourArray.update(index, pour)}
-              onAppendPour={(pour) => pourArray.append(pour)}
+              // shouldFocus:false——append 預設會聚焦新列的「手法」文字框，
+              // iOS 會因此在計時中彈出鍵盤（列在全螢幕層後面，看不到但吃焦點）
+              onAppendPour={(pour) =>
+                pourArray.append(pour, { shouldFocus: false })
+              }
               onRemovePour={(index) => pourArray.remove(index)}
               onBloomEnd={(sec) =>
                 form.setValue('bloom_time_sec', sec, { shouldDirty: true })
