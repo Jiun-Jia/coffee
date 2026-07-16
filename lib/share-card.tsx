@@ -34,46 +34,97 @@ function stars(n: number | null): string {
 
 type CardModel = {
   kicker: string
+  /** 右上角小標（養豆天數，2026-07-16 回饋） */
+  corner?: string
   title: string
   subtitle: string
   chips: { label: string; value: string }[]
+  /** 注水時間軸：悶蒸 → 各分段（時間·累積水量）→ 總時間 */
+  pourLine?: string
   starLine: string
   footer: string
 }
 
-/** 分享資料 → 卡面內容（brew＝配方卡；bean＝豆卡） */
+type PourStep = {
+  end_time_sec: number | null
+  cumulative_water_g: number | null
+}
+
+/** 沖煮參數 chips（2026-07-16 回饋：粉量/水量分開、口徑直白） */
+function brewChips(brew: {
+  water_temp: number | null
+  dose_g: number
+  water_g: number
+  ice_g: number | null
+  ratio_include_ice: boolean
+}): { label: string; value: string }[] {
+  const ratio = calcRatioValue(
+    brew.water_g,
+    brew.dose_g,
+    brew.ice_g,
+    brew.ratio_include_ice,
+  )
+  return [
+    brew.water_temp != null && {
+      label: '水溫',
+      value: `${brew.water_temp}°C`,
+    },
+    { label: '粉量', value: `${brew.dose_g}g` },
+    { label: '總注水量', value: `${brew.water_g}g` },
+    ratio != null && { label: '水粉比', value: formatRatio(ratio) },
+  ].filter((c): c is { label: string; value: string } => Boolean(c))
+}
+
+/** 悶蒸→分段→總時間 的一行時間軸（最多列 8 段，超出以 … 帶過） */
+function pourTimeline(
+  pours: PourStep[],
+  bloomTimeSec: number | null,
+  bloomWaterG: number | null,
+  totalTimeSec: number | null,
+): string | undefined {
+  const parts: string[] = []
+  if (bloomTimeSec != null) {
+    parts.push(
+      `悶蒸 ${formatSecondsToMSS(bloomTimeSec)}${bloomWaterG != null ? `·${bloomWaterG}g` : ''}`,
+    )
+  }
+  for (const p of pours.slice(0, 8)) {
+    if (p.end_time_sec == null && p.cumulative_water_g == null) continue
+    const t = p.end_time_sec != null ? formatSecondsToMSS(p.end_time_sec) : ''
+    const w = p.cumulative_water_g != null ? `${p.cumulative_water_g}g` : ''
+    parts.push([t, w].filter(Boolean).join('·'))
+  }
+  if (pours.length > 8) parts.push('…')
+  if (totalTimeSec != null)
+    parts.push(`總時間 ${formatSecondsToMSS(totalTimeSec)}`)
+  return parts.length > 0 ? parts.join('  →  ') : undefined
+}
+
+/** 分享資料 → 卡面內容（brew＝配方卡；bean＝豆卡＝最佳一杯） */
 export function toCardModel(shared: SharedData): CardModel {
   if (shared.type === 'brew') {
     const { brew } = shared
     const bean = brew.beans
-    const ratio =
-      brew.dose_g != null && brew.water_g != null
-        ? calcRatioValue(
-            brew.water_g,
-            brew.dose_g,
-            brew.ice_g,
-            brew.ratio_include_ice,
-          )
-        : null
-    const chips = [
-      brew.water_temp != null && {
-        label: '水溫',
-        value: `${brew.water_temp}°C`,
-      },
-      ratio != null && { label: '粉水比', value: formatRatio(ratio) },
-      { label: '粉量', value: `${brew.dose_g}g / ${brew.water_g}g` },
-      brew.total_time_sec != null && {
-        label: '總時間',
-        value: formatSecondsToMSS(brew.total_time_sec),
-      },
-    ].filter((c): c is { label: string; value: string } => Boolean(c))
+    const restDays = bean
+      ? calcRestDays(new Date(brew.brewed_at), bean.roast_date)
+      : null
     return {
       kicker: `Brewlog 配方卡 · ${BREW_TYPE_LABELS[brew.brew_type]}`,
+      corner:
+        restDays != null && restDays >= 0
+          ? `養豆 第 ${restDays} 天`
+          : undefined,
       title: bean?.name_batch ?? '手沖紀錄',
       subtitle: bean
         ? `${bean.roaster} · ${bean.origin} · ${ROAST_LEVEL_LABELS[bean.roast_level]}`
         : '',
-      chips,
+      chips: brewChips(brew),
+      pourLine: pourTimeline(
+        shared.pours,
+        brew.bloom_time_sec,
+        brew.bloom_water_g,
+        brew.total_time_sec,
+      ),
       starLine: stars(brew.overall),
       footer: [
         brew.profiles?.username && `沖煮人 ${brew.profiles.username}`,
@@ -84,47 +135,25 @@ export function toCardModel(shared: SharedData): CardModel {
     }
   }
 
-  const { bean } = shared
-  // 豆卡的主角＝分享者的「最佳一杯」（2026-07-16 回饋：豆況資訊太薄，
-  // 拿到卡的人最想知道的是「這包怎麼沖最好喝」）
-  const best = [...shared.brews]
-    .filter((b) => b.overall != null)
-    .sort(
-      (a, b) =>
-        (b.overall ?? 0) - (a.overall ?? 0) ||
-        b.brewed_at.localeCompare(a.brewed_at),
-    )[0]
-
+  const { bean, best } = shared
+  // 豆卡的主角＝分享者的「最佳一杯」（含注水分段；2026-07-16 回饋）
   if (best) {
-    const ratio =
-      best.dose_g != null && best.water_g != null
-        ? calcRatioValue(
-            best.water_g,
-            best.dose_g,
-            best.ice_g,
-            best.ratio_include_ice,
-          )
-        : null
     const restDays = calcRestDays(new Date(best.brewed_at), bean.roast_date)
-    const chips = [
-      best.water_temp != null && {
-        label: '水溫',
-        value: `${best.water_temp}°C`,
-      },
-      ratio != null && { label: '粉水比', value: formatRatio(ratio) },
-      { label: '粉量', value: `${best.dose_g}g / ${best.water_g}g` },
-      best.total_time_sec != null && {
-        label: '總時間',
-        value: formatSecondsToMSS(best.total_time_sec),
-      },
-      restDays != null &&
-        restDays >= 0 && { label: '養豆', value: `第 ${restDays} 天` },
-    ].filter((c): c is { label: string; value: string } => Boolean(c))
     return {
       kicker: 'Brewlog 豆子分享 · 我的最佳沖法',
+      corner:
+        restDays != null && restDays >= 0
+          ? `養豆 第 ${restDays} 天`
+          : undefined,
       title: bean.name_batch,
       subtitle: `${bean.roaster} · ${bean.origin} · ${ROAST_LEVEL_LABELS[bean.roast_level]}${bean.process ? ` · ${bean.process}` : ''}`,
-      chips,
+      chips: brewChips(best),
+      pourLine: pourTimeline(
+        best.pours,
+        best.bloom_time_sec,
+        best.bloom_water_g,
+        best.total_time_sec,
+      ),
       starLine: stars(best.overall),
       footer: [
         bean.profiles?.username && `分享者 ${bean.profiles.username}`,
@@ -183,8 +212,30 @@ export function ShareCard({ model }: { model: CardModel }): ReactElement {
       }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ display: 'flex', fontSize: 28, color: ACCENT }}>
-          {model.kicker}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div style={{ display: 'flex', fontSize: 28, color: ACCENT }}>
+            {model.kicker}
+          </div>
+          {model.corner && (
+            <div
+              style={{
+                display: 'flex',
+                fontSize: 26,
+                color: MUTED,
+                backgroundColor: PANEL,
+                borderRadius: 999,
+                padding: '10px 22px',
+              }}
+            >
+              {model.corner}
+            </div>
+          )}
         </div>
         <div
           style={{
@@ -203,7 +254,7 @@ export function ShareCard({ model }: { model: CardModel }): ReactElement {
         )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           {model.chips.map((chip) => (
             <div
@@ -226,6 +277,19 @@ export function ShareCard({ model }: { model: CardModel }): ReactElement {
             </div>
           ))}
         </div>
+
+        {model.pourLine && (
+          <div
+            style={{
+              display: 'flex',
+              fontSize: 25,
+              color: MUTED,
+              lineHeight: 1.6,
+            }}
+          >
+            {model.pourLine}
+          </div>
+        )}
 
         <div
           style={{

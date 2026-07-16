@@ -66,13 +66,36 @@ export const fetchShared = cache(async (slug: string) => {
     const { data: brews } = await admin
       .from('brews')
       .select(
-        'id, brewed_at, water_temp, dose_g, water_g, ice_g, ratio_include_ice, grind_setting, total_time_sec, overall, public_slug',
+        'id, brewed_at, water_temp, dose_g, water_g, ice_g, ratio_include_ice, grind_setting, bloom_water_g, bloom_time_sec, total_time_sec, overall, public_slug',
       )
       .eq('bean_id', bean.id)
       .eq('user_id', bean.user_id)
       .order('brewed_at', { ascending: false })
       .limit(50)
-    return { type: 'bean' as const, bean, brews: brews ?? [] }
+
+    // 豆卡主角＝最佳一杯（overall 最高、同分取最新），連同它的注水分段
+    const best =
+      (brews ?? [])
+        .filter((b) => b.overall != null)
+        .sort(
+          (a, b) =>
+            (b.overall ?? 0) - (a.overall ?? 0) ||
+            b.brewed_at.localeCompare(a.brewed_at),
+        )[0] ?? null
+    const { data: bestPours } = best
+      ? await admin
+          .from('brew_pours')
+          .select('seq, end_time_sec, cumulative_water_g, note')
+          .eq('brew_id', best.id)
+          .order('seq')
+      : { data: [] }
+
+    return {
+      type: 'bean' as const,
+      bean,
+      brews: brews ?? [],
+      best: best ? { ...best, pours: bestPours ?? [] } : null,
+    }
   }
 
   return null
