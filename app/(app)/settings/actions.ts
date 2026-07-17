@@ -15,8 +15,7 @@ const tagNameSchema = z
 const USER_TAG_CATEGORY = '自訂'
 
 export type GrinderActionResult =
-  | { ok: true; id: string; pending?: boolean }
-  | { ok: false; error: string }
+  { ok: true; id: string; pending?: boolean } | { ok: false; error: string }
 
 /**
  * FR-10.9b：群組器材審核 —— 一般成員新增為 pending（提案）、
@@ -186,6 +185,80 @@ export async function createEquipment(
   return { ok: true, id: data.id, pending: status === 'pending' }
 }
 
+/**
+ * 器材改名（2026-07-17 回饋）：沖煮/配方存的是**文字**，單純改清單
+ * 名稱會讓舊紀錄變孤兒——所以一併把「我的」沖煮與配方裡的舊名稱
+ * 同步成新名稱。群組器材：其他成員的紀錄動不了（RLS），他們的舊
+ * 紀錄保留原文字。
+ */
+export async function renameEquipment(
+  id: string,
+  newName: string,
+): Promise<
+  | { ok: true; updatedBrews: number; updatedRecipes: number }
+  | { ok: false; error: string }
+> {
+  const parsedName = equipmentNameSchema.safeParse(newName)
+  if (!parsedName.success) return { ok: false, error: '名稱格式不正確' }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: '請先登入' }
+
+  const { data: item } = await supabase
+    .from('equipment')
+    .select('id, kind, name')
+    .eq('id', id)
+    .maybeSingle()
+  if (!item) return { ok: false, error: '找不到這件器材或沒有權限' }
+  if (item.name === parsedName.data)
+    return { ok: true, updatedBrews: 0, updatedRecipes: 0 }
+
+  const { data: updated, error } = await supabase
+    .from('equipment')
+    .update({ name: parsedName.data })
+    .eq('id', id)
+    .select('id')
+  if (error) {
+    if (error.code === '23505') return { ok: false, error: '已有同名器材' }
+    return { ok: false, error: `改名失敗：${error.message}` }
+  }
+  if (!updated.length) return { ok: false, error: '找不到這件器材或沒有權限' }
+
+  // 同步我的沖煮與配方（該 kind 欄位文字完全等於舊名的列）。
+  // 明確分支而非計算屬性鍵：supabase 的型別化 update 不收 string index。
+  const col = item.kind as 'dripper' | 'filter' | 'kettle'
+  const payload =
+    col === 'dripper'
+      ? { dripper: parsedName.data }
+      : col === 'filter'
+        ? { filter: parsedName.data }
+        : { kettle: parsedName.data }
+  const [brewsRes, recipesRes] = await Promise.all([
+    supabase
+      .from('brews')
+      .update(payload, { count: 'exact' })
+      .eq(col, item.name)
+      .eq('user_id', user.id),
+    supabase
+      .from('recipes')
+      .update(payload, { count: 'exact' })
+      .eq(col, item.name)
+      .eq('user_id', user.id),
+  ])
+
+  revalidatePath('/settings')
+  revalidatePath('/groups', 'layout')
+  revalidatePath('/brews', 'layout')
+  return {
+    ok: true,
+    updatedBrews: brewsRes.count ?? 0,
+    updatedRecipes: recipesRes.count ?? 0,
+  }
+}
+
 /** 器材清單：刪除（沖煮紀錄存文字不受影響）。 */
 export async function deleteEquipment(
   id: string,
@@ -269,6 +342,38 @@ export async function createUserTag(
   revalidatePath('/settings')
   revalidatePath('/groups', 'layout')
   return { ok: true, tag }
+}
+
+/**
+ * 個人標籤改名（2026-07-17 回饋）：標籤以 id 關聯（brew_flavor_tags），
+ * 改名後所有掛過它的沖煮自動顯示新名稱，不需逐筆更新。
+ */
+export async function renameUserTag(
+  id: string,
+  newName: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = tagNameSchema.safeParse(newName)
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? '名稱不正確' }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('flavor_tags')
+    .update({ name: parsed.data })
+    .eq('id', id)
+    .eq('scope', 'user') // 僅個人標籤；群組標籤由群組頁管理
+    .select('id')
+
+  if (error) {
+    if (error.code === '23505') return { ok: false, error: '已有同名標籤' }
+    return { ok: false, error: `改名失敗：${error.message}` }
+  }
+  if (!data.length) return { ok: false, error: '找不到這個標籤或沒有權限' }
+
+  revalidatePath('/settings')
+  revalidatePath('/brews', 'layout')
+  return { ok: true }
 }
 
 /** FR-5.6：群組建立者核可提交 → 建立群組標籤（全員可用）並標記 approved。 */

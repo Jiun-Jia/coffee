@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -22,8 +22,20 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { createUserTag, deleteUserTag } from '@/app/(app)/settings/actions'
+import {
+  createUserTag,
+  deleteUserTag,
+  renameUserTag,
+} from '@/app/(app)/settings/actions'
 
 type MyTag = { id: string; name: string; usage_count: number }
 type Suggestion = {
@@ -92,6 +104,29 @@ export function TagManager({
 }) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
+  // 改名（2026-07-17 回饋）：標籤以 id 關聯，改名後掛過的沖煮自動跟上
+  const [editing, setEditing] = useState<MyTag | null>(null)
+  const [editName, setEditName] = useState('')
+  const [renaming, setRenaming] = useState(false)
+
+  async function onRename() {
+    if (!editing || renaming) return
+    setRenaming(true)
+    const result = await renameUserTag(editing.id, editName)
+    setRenaming(false)
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
+    toast.success(
+      `已改名為「${editName.trim()}」${
+        editing.usage_count > 0
+          ? `，掛過它的 ${editing.usage_count} 筆沖煮自動顯示新名稱`
+          : ''
+      }`,
+    )
+    setEditing(null)
+  }
 
   async function onCreate() {
     const trimmed = name.trim()
@@ -126,10 +161,71 @@ export function TagManager({
               <span className="text-muted-foreground text-xs">
                 {tag.usage_count}
               </span>
+              <button
+                type="button"
+                aria-label={`改名 ${tag.name}`}
+                onClick={() => {
+                  setEditing(tag)
+                  setEditName(tag.name)
+                }}
+                className="hover:text-foreground"
+              >
+                <Pencil className="size-3" />
+              </button>
               <DeleteTagButton tag={tag} />
             </Badge>
           ))}
         </div>
+
+        <Dialog
+          open={editing !== null}
+          onOpenChange={(open) => !open && setEditing(null)}
+        >
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>改名標籤「{editing?.name}」</DialogTitle>
+              <DialogDescription>
+                標籤以 ID 關聯，改名後
+                {editing && editing.usage_count > 0
+                  ? `掛過它的 ${editing.usage_count} 筆沖煮`
+                  : '所有相關紀錄'}
+                會自動顯示新名稱。
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              maxLength={30}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && editName.trim() && !renaming) {
+                  e.preventDefault()
+                  onRename()
+                }
+              }}
+            />
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setEditing(null)}
+                disabled={renaming}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={onRename}
+                disabled={
+                  renaming ||
+                  !editName.trim() ||
+                  editName.trim() === editing?.name
+                }
+              >
+                {renaming && <Loader2 className="size-4 animate-spin" />}
+                改名
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="flex max-w-xs gap-2">
           <Input

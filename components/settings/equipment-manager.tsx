@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Loader2, Plus, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, Loader2, Pencil, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,13 +12,21 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { createEquipment, deleteEquipment } from '@/app/(app)/settings/actions'
 import {
-  DRIPPER_PRESETS,
-  FILTER_PRESETS,
-  KETTLE_PRESETS,
-} from '@/lib/presets'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import {
+  createEquipment,
+  deleteEquipment,
+  renameEquipment,
+} from '@/app/(app)/settings/actions'
+import { DRIPPER_PRESETS, FILTER_PRESETS, KETTLE_PRESETS } from '@/lib/presets'
 
 type Kind = 'dripper' | 'filter' | 'kettle'
 type Item = { id: string; name: string }
@@ -31,9 +39,24 @@ const KIND_META: {
   placeholder: string
   presets: readonly string[]
 }[] = [
-  { kind: 'dripper', label: '濾杯', placeholder: '例：V60-01', presets: DRIPPER_PRESETS },
-  { kind: 'filter', label: '濾紙', placeholder: '例：Cafec 漂白', presets: FILTER_PRESETS },
-  { kind: 'kettle', label: '手沖壺', placeholder: '例：Fellow Stagg', presets: KETTLE_PRESETS },
+  {
+    kind: 'dripper',
+    label: '濾杯',
+    placeholder: '例：V60-01',
+    presets: DRIPPER_PRESETS,
+  },
+  {
+    kind: 'filter',
+    label: '濾紙',
+    placeholder: '例：Cafec 漂白',
+    presets: FILTER_PRESETS,
+  },
+  {
+    kind: 'kettle',
+    label: '手沖壺',
+    placeholder: '例：Fellow Stagg',
+    presets: KETTLE_PRESETS,
+  },
 ]
 
 function KindSection({
@@ -52,6 +75,30 @@ function KindSection({
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  // 改名 dialog（2026-07-17 回饋：改名會同步既有沖煮/配方的舊文字）
+  const [editing, setEditing] = useState<Item | null>(null)
+  const [editName, setEditName] = useState('')
+
+  async function onRename() {
+    if (!editing || busy) return
+    setBusy(true)
+    const result = await renameEquipment(editing.id, editName)
+    setBusy(false)
+    if (!result.ok) {
+      toast.error(result.error)
+      return
+    }
+    const synced = [
+      result.updatedBrews > 0 && `${result.updatedBrews} 筆沖煮`,
+      result.updatedRecipes > 0 && `${result.updatedRecipes} 個配方`,
+    ].filter(Boolean)
+    toast.success(
+      `已改名為「${editName.trim()}」${
+        synced.length > 0 ? `，並同步 ${synced.join('、')}` : ''
+      }`,
+    )
+    setEditing(null)
+  }
 
   async function onAdd(value?: string) {
     const trimmed = (value ?? name).trim()
@@ -95,6 +142,17 @@ function KindSection({
             {item.name}
             <button
               type="button"
+              aria-label={`改名 ${item.name}`}
+              onClick={() => {
+                setEditing(item)
+                setEditName(item.name)
+              }}
+              className="hover:text-foreground"
+            >
+              <Pencil className="size-3" />
+            </button>
+            <button
+              type="button"
               aria-label={`刪除 ${item.name}`}
               onClick={() => onDelete(item)}
               className="hover:text-destructive"
@@ -103,6 +161,52 @@ function KindSection({
             </button>
           </Badge>
         ))}
+        <Dialog
+          open={editing !== null}
+          onOpenChange={(open) => !open && setEditing(null)}
+        >
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                改名{label}「{editing?.name}」
+              </DialogTitle>
+              <DialogDescription>
+                會一併把你既有沖煮與配方裡的「{editing?.name}
+                」更新成新名稱（群組成員的紀錄不受影響）。
+              </DialogDescription>
+            </DialogHeader>
+            <Input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              maxLength={100}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && editName.trim() && !busy) {
+                  e.preventDefault()
+                  onRename()
+                }
+              }}
+            />
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setEditing(null)}
+                disabled={busy}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={onRename}
+                disabled={
+                  busy || !editName.trim() || editName.trim() === editing?.name
+                }
+              >
+                {busy && <Loader2 className="size-4 animate-spin" />}
+                改名並同步
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       <div className="flex max-w-md gap-2">
         <Input
