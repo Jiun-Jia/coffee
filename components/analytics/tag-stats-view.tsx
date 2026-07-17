@@ -3,7 +3,10 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { FlavorWheel } from '@/components/charts/flavor-wheel'
-import { TagStatsChart, type TagStat } from '@/components/charts/tag-stats-chart'
+import {
+  TagStatsChart,
+  type TagStat,
+} from '@/components/charts/tag-stats-chart'
 
 /** FR-21.2 A4 檢視切換：風味輪（預設）／長條（前 15 名，等同表格檢視）。 */
 export function TagStatsView({ stats }: { stats: TagStat[] }) {

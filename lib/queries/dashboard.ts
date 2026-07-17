@@ -1,5 +1,18 @@
+import {
+  drinkingWindow,
+  inWindow,
+  type DrinkingWindow,
+} from '@/lib/drinking-window'
+import { calcRestDays } from '@/lib/format'
 import { listBeans } from '@/lib/queries/beans'
 import { listBrews, type BrewDetailRow } from '@/lib/queries/brews'
+
+export type DrinkableBean = {
+  id: string
+  name: string
+  day: number
+  window: DrinkingWindow
+}
 
 export type DashboardStats = {
   monthCount: number
@@ -8,6 +21,8 @@ export type DashboardStats = {
   restingBeans: number
   recentBrews: BrewDetailRow[]
   totalBeans: number
+  /** FR-16 適飲中：目前落在最佳適飲區間的未封存豆 */
+  drinkableBeans: DrinkableBean[]
 }
 
 /** 台北時區的本月起點（ISO）。伺服器可能在 UTC（Vercel），不可用本地月界。 */
@@ -23,7 +38,9 @@ function taipeiMonthStartISO(now = new Date()): string {
  * 在養豆子數（烘焙日 60 天內）。個人量級直接以 listBrews 聚合。
  * FR-10 後統計只算「自己的」沖煮（uid）；最近沖煮保留群組成員的（動態感）。
  */
-export async function fetchDashboardStats(uid: string): Promise<DashboardStats> {
+export async function fetchDashboardStats(
+  uid: string,
+): Promise<DashboardStats> {
   const [visibleBrews, beans] = await Promise.all([listBrews(), listBeans()])
   const brews = visibleBrews.filter((b) => b.user_id === uid)
 
@@ -58,6 +75,33 @@ export async function fetchDashboardStats(uid: string): Promise<DashboardStats> 
       new Date(`${b.roast_date}T00:00:00+08:00`) >= cutoff60,
   ).length
 
+  // FR-16 適飲中（WIN-2）：以「我的」沖煮個人化區間，未封存豆逐支判定
+  const myScoredByBean = new Map<
+    string,
+    { restDays: number; overall: number }[]
+  >()
+  for (const b of brews) {
+    if (!b.bean_id || b.rest_days == null || b.overall == null) continue
+    const list = myScoredByBean.get(b.bean_id) ?? []
+    list.push({ restDays: b.rest_days, overall: b.overall })
+    myScoredByBean.set(b.bean_id, list)
+  }
+  const drinkableBeans: DrinkableBean[] = beans
+    .filter((bean) => bean.archived_at === null)
+    .flatMap((bean) => {
+      const day = calcRestDays(new Date(), bean.roast_date)
+      if (day == null || day < 0) return []
+      const window = drinkingWindow(
+        myScoredByBean.get(bean.id) ?? [],
+        bean.roast_level,
+      )
+      return inWindow(day, window)
+        ? [{ id: bean.id, name: bean.name_batch, day, window }]
+        : []
+    })
+    .sort((a, b) => a.day - b.day)
+    .slice(0, 5)
+
   return {
     monthCount: monthBrews.length,
     monthAvgOverall:
@@ -70,5 +114,6 @@ export async function fetchDashboardStats(uid: string): Promise<DashboardStats> 
     restingBeans,
     recentBrews: visibleBrews.slice(0, 5), // 含群組成員的最新動態
     totalBeans: beans.length,
+    drinkableBeans,
   }
 }

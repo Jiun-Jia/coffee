@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { GitCompareArrows } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BrewActions } from '@/components/brews/brew-actions'
 import { SaveRecipeDialog } from '@/components/brews/save-recipe-dialog'
@@ -93,6 +95,13 @@ export default async function BrewDetailPage({
           </div>
           {brew.id && (
             <div className="flex flex-wrap gap-2">
+              {/* FR-17：與另一杯並排對照（預設本杯為 A，同豆候選排前） */}
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/brews/compare?a=${brew.id}`}>
+                  <GitCompareArrows className="size-4" />
+                  對照
+                </Link>
+              </Button>
               {/* FR-14.1：可見的沖煮（含群組成員的）都能存成自己的配方 */}
               <SaveRecipeDialog
                 brewId={brew.id}

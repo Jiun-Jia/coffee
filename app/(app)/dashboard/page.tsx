@@ -1,13 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Coffee, CupSoda, Plus, Sprout, Star } from 'lucide-react'
+import { Coffee, CupSoda, Leaf, Plus, Sprout, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatRatio } from '@/lib/format'
 import { getCurrentProfile } from '@/lib/auth/profile'
 import { fetchDashboardStats } from '@/lib/queries/dashboard'
@@ -111,6 +106,37 @@ export default async function DashboardPage() {
               icon={Sprout}
             />
           </div>
+
+          {/* FR-16 適飲中（WIN-2）：正值最佳賞味區間的豆 */}
+          {stats.drinkableBeans.length > 0 && (
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2">
+                <Leaf className="size-4 text-emerald-600" />
+                <CardTitle className="text-base">適飲中</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {stats.drinkableBeans.map((bean) => (
+                  <Link
+                    key={bean.id}
+                    href={`/brews/new?beanId=${bean.id}`}
+                    className="hover:bg-accent/50 flex items-center justify-between gap-2 rounded-md border px-3 py-2 transition-colors"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium">
+                      {bean.name}
+                    </span>
+                    <span className="text-muted-foreground shrink-0 text-xs">
+                      第 {bean.day} 天 · 區間 {bean.window.fromDay}–
+                      {bean.window.toDay} 天（
+                      {bean.window.source === 'personal'
+                        ? '依你的紀錄'
+                        : '焙度預設'}
+                      ）
+                    </span>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">

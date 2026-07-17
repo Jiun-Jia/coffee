@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { AnalyticsTabs } from '@/components/analytics/analytics-tabs'
 import { RadarPicker } from '@/components/analytics/radar-picker'
 import { TagStatsView } from '@/components/analytics/tag-stats-view'
 import { BrewFilters } from '@/components/brews/brew-filters'
@@ -75,9 +76,7 @@ export default async function AnalyticsPage({
     water_g: b.water_g,
     grind_setting: b.grind_setting,
     grinder_id: b.grinder_id,
-    grinder_name: b.grinder_id
-      ? (grinderName.get(b.grinder_id) ?? null)
-      : null,
+    grinder_name: b.grinder_id ? (grinderName.get(b.grinder_id) ?? null) : null,
   }))
 
   const radarOptions = brews
@@ -107,6 +106,7 @@ export default async function AnalyticsPage({
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">分析</h1>
+      <AnalyticsTabs active="overview" />
       <BrewFilters
         scopeToggle={groups.length > 0}
         options={{
@@ -177,7 +177,8 @@ export default async function AnalyticsPage({
           <CardHeader>
             <CardTitle className="text-base">消費統計</CardTitle>
             <CardDescription>
-              每月豆子花費（依登錄月，近 12 個月）；只計自己買的豆與自己的沖煮（FR-18）
+              每月豆子花費（依登錄月，近 12
+              個月）；只計自己買的豆與自己的沖煮（FR-18）
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

@@ -19,9 +19,12 @@ import { RestDaysChart } from '@/components/charts/rest-days-chart'
 import { PhotoUploader } from '@/components/shared/photo-uploader'
 import { ShareToggle } from '@/components/shared/share-toggle'
 import { getCurrentProfile } from '@/lib/auth/profile'
+import { beanInsights } from '@/lib/bean-insights'
 import { beanInventory } from '@/lib/bean-inventory'
-import { formatRatio, formatSecondsToMSS } from '@/lib/format'
+import { drinkingWindow, inWindow } from '@/lib/drinking-window'
+import { calcRestDays, formatRatio, formatSecondsToMSS } from '@/lib/format'
 import { getBean, getBeanBrews } from '@/lib/queries/beans'
+import { listGrinders } from '@/lib/queries/grinders'
 import { getPhotoUrl } from '@/lib/queries/photos'
 import { ROAST_LEVEL_LABELS } from '@/lib/validations/enums'
 
@@ -39,9 +42,10 @@ export default async function BeanDetailPage({
   const isCreator = bean.user_id === profile?.id
   const isGroupBean = bean.group_id !== null
 
-  const [brews, photoUrl] = await Promise.all([
+  const [brews, photoUrl, grinders] = await Promise.all([
     getBeanBrews(id),
     getPhotoUrl(bean.photo_path),
+    listGrinders(),
   ])
   // A1：標記最佳（overall 最高，同分取最新；列表已按 brewed_at desc 排序）
   const best = brews.reduce<(typeof brews)[number] | null>(
@@ -57,6 +61,37 @@ export default async function BeanDetailPage({
     bean.avg_dose_g,
   )
   const archived = bean.archived_at !== null
+
+  // FR-16 適飲區間（個人化以「我的」有評分沖煮計）
+  const window = drinkingWindow(
+    brews
+      .filter(
+        (b) =>
+          b.user_id === profile?.id && b.rest_days != null && b.overall != null,
+      )
+      .map((b) => ({ restDays: b.rest_days!, overall: b.overall! })),
+    bean.roast_level,
+  )
+  const todayRestDays = calcRestDays(new Date(), bean.roast_date)
+  const drinkableNow =
+    !archived && todayRestDays != null && inWindow(todayRestDays, window)
+
+  // FR-19 觀察（INS-2）：以「我的」有評分沖煮做規則式比較
+  const grinderName = new Map(grinders.map((g) => [g.id, g.name]))
+  const insights = beanInsights(
+    brews
+      .filter((b) => b.user_id === profile?.id && b.overall != null)
+      .map((b) => ({
+        waterTemp: b.water_temp,
+        ratioValue: b.ratio_value,
+        grinderId: b.grinder_id,
+        grinderName: b.grinder_id
+          ? (grinderName.get(b.grinder_id) ?? null)
+          : null,
+        grindSetting: b.grind_setting,
+        overall: b.overall!,
+      })),
+  )
 
   const meta = [
     { label: '產地', value: bean.origin },
@@ -80,6 +115,12 @@ export default async function BeanDetailPage({
               : ''
           }`
         : null,
+    },
+    {
+      label: '適飲區間',
+      value: `第 ${window.fromDay}–${window.toDay} 天（${
+        window.source === 'personal' ? '依你的紀錄' : '焙度預設'
+      }）${drinkableNow ? ` · 今天第 ${todayRestDays} 天，正值適飲` : ''}`,
     },
   ].filter((m) => m.value)
 
@@ -159,6 +200,24 @@ export default async function BeanDetailPage({
         <ShareToggle kind="bean" id={bean.id} slug={bean.public_slug} />
       )}
 
+      {/* FR-19 觀察（INS-2）：規則式的變因比較，樣本門檻見 lib/bean-insights */}
+      {insights.length > 0 && (
+        <Card>
+          <CardContent className="space-y-1.5 py-4">
+            <p className="text-sm font-medium">觀察</p>
+            {insights.map((insight) => (
+              <p key={insight.text} className="text-sm">
+                {insight.text}
+              </p>
+            ))}
+            <p className="text-muted-foreground text-xs">
+              依你的紀錄做規則式統計（兩側樣本 ≥ 3 且差 ≥ 0.5
+              分才顯示），僅供調整參考
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-medium">
@@ -174,8 +233,8 @@ export default async function BeanDetailPage({
           )}
         </div>
 
-        {brews.filter((b) => b.rest_days != null && b.overall != null)
-          .length >= 2 && (
+        {brews.filter((b) => b.rest_days != null && b.overall != null).length >=
+          2 && (
           <Card>
             <CardContent className="pt-4">
               <RestDaysChart
